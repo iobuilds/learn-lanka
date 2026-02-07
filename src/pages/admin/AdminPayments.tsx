@@ -1,21 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search, 
-  Filter, 
   CreditCard, 
   Clock, 
   CheckCircle, 
   XCircle,
   Eye,
   Download,
-  MoreVertical
+  MoreVertical,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -32,34 +32,80 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import PaymentVerificationDialog from '@/components/admin/PaymentVerificationDialog';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
-// Mock payments data
-const mockPayments = [
-  { id: '1', user: 'Kasun Perera', phone: '0771234567', type: 'CLASS_MONTH', ref: 'A/L ICT 2026 - Feb', amount: 3500, status: 'PENDING', date: '2024-02-01' },
-  { id: '2', user: 'Nimali Silva', phone: '0772345678', type: 'CLASS_MONTH', ref: 'O/L ICT 2025 - Feb', amount: 2500, status: 'APPROVED', date: '2024-02-01' },
-  { id: '3', user: 'Tharindu Fernando', phone: '0773456789', type: 'RANK_PAPER', ref: 'Model Paper Jan', amount: 500, status: 'PENDING', date: '2024-01-28' },
-  { id: '4', user: 'Sachini Dias', phone: '0774567890', type: 'SHOP_ORDER', ref: 'ICT Theory Notes', amount: 1500, status: 'APPROVED', date: '2024-01-25' },
-  { id: '5', user: 'Ravindu Jayasinghe', phone: '0775678901', type: 'CLASS_MONTH', ref: 'A/L ICT 2026 - Feb', amount: 3500, status: 'REJECTED', date: '2024-02-02' },
-];
+interface Payment {
+  id: string;
+  user_id: string;
+  payment_type: string;
+  ref_id: string;
+  amount: number;
+  slip_url: string | null;
+  status: string;
+  note: string | null;
+  created_at: string;
+  profiles?: {
+    first_name: string;
+    last_name: string;
+    phone: string;
+  };
+}
 
 const AdminPayments = () => {
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const filteredPayments = mockPayments.filter((payment) => {
+  const fetchPayments = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      // Fetch profiles separately
+      const userIds = [...new Set(data.map(p => p.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, phone')
+        .in('id', userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const paymentsWithProfiles = data.map(payment => ({
+        ...payment,
+        profiles: profileMap.get(payment.user_id) || { first_name: 'Unknown', last_name: '', phone: '' }
+      }));
+      setPayments(paymentsWithProfiles as Payment[]);
+
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchPayments();
+  }, []);
+
+  const filteredPayments = payments.filter((payment) => {
+    const userName = `${payment.profiles?.first_name || ''} ${payment.profiles?.last_name || ''}`.toLowerCase();
+    const phone = payment.profiles?.phone || '';
     const matchesSearch = 
-      payment.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.phone.includes(searchQuery);
+      userName.includes(searchQuery.toLowerCase()) ||
+      phone.includes(searchQuery);
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
-    const matchesType = typeFilter === 'all' || payment.type === typeFilter;
+    const matchesType = typeFilter === 'all' || payment.payment_type === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const pendingCount = mockPayments.filter(p => p.status === 'PENDING').length;
-  const approvedCount = mockPayments.filter(p => p.status === 'APPROVED').length;
-  const rejectedCount = mockPayments.filter(p => p.status === 'REJECTED').length;
+  const pendingCount = payments.filter(p => p.status === 'PENDING').length;
+  const approvedCount = payments.filter(p => p.status === 'APPROVED').length;
+  const rejectedCount = payments.filter(p => p.status === 'REJECTED').length;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -87,13 +133,24 @@ const AdminPayments = () => {
     }
   };
 
+  const handleViewSlip = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setDialogOpen(true);
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Payments</h1>
-          <p className="text-muted-foreground">Verify and manage payments</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Payments</h1>
+            <p className="text-muted-foreground">Verify and manage payments</p>
+          </div>
+          <Button variant="outline" onClick={fetchPayments} disabled={loading}>
+            <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats */}
@@ -181,81 +238,88 @@ const AdminPayments = () => {
         {/* Payments Table */}
         <Card className="card-elevated">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPayments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{payment.user}</p>
-                          <p className="text-sm text-muted-foreground">{payment.phone}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getTypeBadge(payment.type)}</TableCell>
-                      <TableCell>{payment.ref}</TableCell>
-                      <TableCell className="font-semibold">Rs. {payment.amount.toLocaleString()}</TableCell>
-                      <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Slip
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Download className="w-4 h-4 mr-2" />
-                              Download Slip
-                            </DropdownMenuItem>
-                            {payment.status === 'PENDING' && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-success">
-                                  <CheckCircle className="w-4 h-4 mr-2" />
-                                  Approve
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive">
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Reject
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {filteredPayments.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12">
-                <CreditCard className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="font-medium text-foreground mb-2">No payments found</h3>
-                <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-10"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPayments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">
+                                {payment.profiles?.first_name} {payment.profiles?.last_name}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{payment.profiles?.phone}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getTypeBadge(payment.payment_type)}</TableCell>
+                          <TableCell className="font-semibold">Rs. {payment.amount.toLocaleString()}</TableCell>
+                          <TableCell>{new Date(payment.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewSlip(payment)}>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View & Verify
+                                </DropdownMenuItem>
+                                {payment.slip_url && (
+                                  <DropdownMenuItem asChild>
+                                    <a href={payment.slip_url} download>
+                                      <Download className="w-4 h-4 mr-2" />
+                                      Download Slip
+                                    </a>
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {filteredPayments.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <CreditCard className="w-12 h-12 text-muted-foreground mb-4" />
+                    <h3 className="font-medium text-foreground mb-2">No payments found</h3>
+                    <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Verification Dialog */}
+      <PaymentVerificationDialog
+        payment={selectedPayment}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={fetchPayments}
+      />
     </AdminLayout>
   );
 };
