@@ -78,22 +78,14 @@ const ClassDetail = () => {
     queryKey: ['class-payment', user?.id, id, selectedMonth],
     queryFn: async () => {
       if (!user || !id) return null;
-      // First get the class_month
-      const { data: classMonth } = await supabase
-        .from('class_months')
-        .select('id')
-        .eq('class_id', id)
-        .eq('year_month', selectedMonth)
-        .maybeSingle();
-      
-      if (!classMonth) return null;
-
+      // ref_id format: classId-yearMonth
+      const refId = `${id}-${selectedMonth}`;
       const { data, error } = await supabase
         .from('payments')
         .select('*')
         .eq('user_id', user.id)
-        .eq('ref_id', classMonth.id)
-        .eq('payment_type', 'CLASS_MONTHLY')
+        .eq('ref_id', refId)
+        .eq('payment_type', 'CLASS_MONTH')
         .maybeSingle();
       if (error) throw error;
       return data;
