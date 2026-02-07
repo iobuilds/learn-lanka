@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -12,22 +11,82 @@ import {
   ChevronRight,
   Award,
   BookOpen,
-  CreditCard
+  CreditCard,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import StudentLayout from '@/components/layouts/StudentLayout';
-import { mockCurrentUser, mockEnrolledClassIds, mockPaymentStatus } from '@/lib/mock-data';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const Profile = () => {
   const navigate = useNavigate();
+  const { user, profile, signOut, loading } = useAuth();
+  const currentYearMonth = new Date().toISOString().slice(0, 7);
 
-  const handleLogout = () => {
-    // In real app, clear auth state
+  // Fetch enrollments
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ['enrollments', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('class_enrollments')
+        .select('class_id')
+        .eq('user_id', user.id)
+        .eq('status', 'ACTIVE');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch payments
+  const { data: payments = [] } = useQuery({
+    queryKey: ['payments', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'APPROVED');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const handleLogout = async () => {
+    await signOut();
     navigate('/login');
   };
+
+  if (loading) {
+    return (
+      <StudentLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </StudentLayout>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <StudentLayout>
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-muted-foreground mb-4">Please log in to view your profile</p>
+          <Link to="/login">
+            <Button>Log In</Button>
+          </Link>
+        </div>
+      </StudentLayout>
+    );
+  }
 
   return (
     <StudentLayout>
@@ -41,15 +100,15 @@ const Profile = () => {
               </div>
               <div className="flex-1">
                 <h1 className="text-xl font-bold text-foreground">
-                  {mockCurrentUser.firstName} {mockCurrentUser.lastName}
+                  {profile.first_name} {profile.last_name}
                 </h1>
                 <p className="text-muted-foreground">
-                  Grade {mockCurrentUser.grade} Student
+                  {profile.grade ? `Grade ${profile.grade} Student` : 'Student'}
                 </p>
                 <div className="flex items-center gap-2 mt-2">
                   <Badge variant="secondary">
                     <Phone className="w-3 h-3 mr-1" />
-                    {mockCurrentUser.phone}
+                    {profile.phone}
                   </Badge>
                 </div>
               </div>
@@ -66,23 +125,21 @@ const Profile = () => {
           <Card className="card-elevated">
             <CardContent className="p-4 text-center">
               <BookOpen className="w-6 h-6 text-primary mx-auto mb-2" />
-              <p className="text-2xl font-bold">{mockEnrolledClassIds.length}</p>
+              <p className="text-2xl font-bold">{enrollments.length}</p>
               <p className="text-xs text-muted-foreground">Classes</p>
             </CardContent>
           </Card>
           <Card className="card-elevated">
             <CardContent className="p-4 text-center">
               <Award className="w-6 h-6 text-accent mx-auto mb-2" />
-              <p className="text-2xl font-bold">#12</p>
+              <p className="text-2xl font-bold">—</p>
               <p className="text-xs text-muted-foreground">Best Rank</p>
             </CardContent>
           </Card>
           <Card className="card-elevated">
             <CardContent className="p-4 text-center">
               <CreditCard className="w-6 h-6 text-success mx-auto mb-2" />
-              <p className="text-2xl font-bold">
-                {Object.values(mockPaymentStatus).filter(s => s === 'PAID').length}
-              </p>
+              <p className="text-2xl font-bold">{payments.length}</p>
               <p className="text-xs text-muted-foreground">Paid</p>
             </CardContent>
           </Card>
@@ -99,7 +156,7 @@ const Profile = () => {
                 <School className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">School</p>
-                  <p className="font-medium">{mockCurrentUser.schoolName}</p>
+                  <p className="font-medium">{profile.school_name || 'Not specified'}</p>
                 </div>
               </div>
             </div>
@@ -109,7 +166,7 @@ const Profile = () => {
                 <GraduationCap className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Grade</p>
-                  <p className="font-medium">Grade {mockCurrentUser.grade}</p>
+                  <p className="font-medium">{profile.grade ? `Grade ${profile.grade}` : 'Not specified'}</p>
                 </div>
               </div>
             </div>
@@ -120,11 +177,14 @@ const Profile = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Birthday</p>
                   <p className="font-medium">
-                    {new Date(mockCurrentUser.birthday).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                    {profile.birthday 
+                      ? new Date(profile.birthday).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })
+                      : 'Not specified'
+                    }
                   </p>
                 </div>
               </div>
@@ -135,7 +195,7 @@ const Profile = () => {
                 <MapPin className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Address</p>
-                  <p className="font-medium">{mockCurrentUser.address}</p>
+                  <p className="font-medium">{profile.address || 'Not specified'}</p>
                 </div>
               </div>
             </div>
