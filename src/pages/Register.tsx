@@ -38,8 +38,11 @@ const Register = () => {
     }
   }, [location.state]);
 
+  const [alreadyRegisteredError, setAlreadyRegisteredError] = useState(false);
+
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAlreadyRegisteredError(false);
     
     if (!phone || phone.length < 9) {
       toast.error('Please enter a valid phone number');
@@ -55,6 +58,12 @@ const Register = () => {
 
       if (error) throw error;
 
+      if (data.alreadyRegistered) {
+        setAlreadyRegisteredError(true);
+        toast.error('This phone number is already registered');
+        return;
+      }
+
       if (data.success) {
         toast.success('OTP sent successfully!');
         setStep('otp');
@@ -63,6 +72,10 @@ const Register = () => {
       }
     } catch (error: any) {
       console.error('Send OTP error:', error);
+      // Check if error response contains alreadyRegistered
+      if (error?.message?.includes('already registered')) {
+        setAlreadyRegisteredError(true);
+      }
       toast.error(error.message || 'Failed to send OTP. Please try again.');
     } finally {
       setIsLoading(false);
@@ -264,11 +277,33 @@ const Register = () => {
                       type="tel"
                       placeholder="07X XXX XXXX"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="pl-10 h-12 bg-slate-50 border-slate-200"
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        setAlreadyRegisteredError(false);
+                      }}
+                      className={`pl-10 h-12 bg-slate-50 ${alreadyRegisteredError ? 'border-red-500' : 'border-slate-200'}`}
                       required
                     />
                   </div>
+                  
+                  {/* Already registered error message */}
+                  {alreadyRegisteredError && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
+                      <p className="text-amber-800 text-sm font-medium">
+                        This phone number is already registered
+                      </p>
+                      <p className="text-amber-700 text-xs mt-1">
+                        Please sign in with your existing account instead.
+                      </p>
+                      <Link 
+                        to="/login" 
+                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm mt-2"
+                      >
+                        Go to Sign In
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 <Button 
