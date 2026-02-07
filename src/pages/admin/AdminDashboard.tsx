@@ -1,35 +1,100 @@
 import { 
   Users, 
   BookOpen, 
-  CreditCard, 
-  TrendingUp,
+  CreditCard,
   DollarSign,
   Clock,
   CheckCircle,
-  AlertCircle
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import AdminLayout from '@/components/layouts/AdminLayout';
-import { mockClasses, mockPaymentStatus } from '@/lib/mock-data';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const AdminDashboard = () => {
-  // Mock stats
-  const stats = {
-    totalUsers: 156,
-    activeClasses: mockClasses.length,
-    pendingPayments: 12,
-    monthlyRevenue: 245000,
-    todayLogins: 45,
-    newRegistrations: 8,
-  };
+  // Fetch stats from database
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: async () => {
+      const [
+        { count: totalUsers },
+        { count: activeClasses },
+        { count: pendingPayments },
+        { data: approvedPayments }
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('classes').select('*', { count: 'exact', head: true }),
+        supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'PENDING'),
+        supabase.from('payments').select('amount').eq('status', 'APPROVED')
+      ]);
 
-  const recentPayments = [
-    { id: '1', user: 'Kasun Perera', class: 'A/L ICT 2026 Batch', amount: 3500, status: 'PENDING' },
-    { id: '2', user: 'Nimali Silva', class: 'O/L ICT 2025 Batch', amount: 2500, status: 'APPROVED' },
-    { id: '3', user: 'Tharindu Fernando', class: 'A/L ICT 2026 Batch', amount: 3500, status: 'PENDING' },
-    { id: '4', user: 'Sachini Dias', class: 'Grade 9 ICT Foundation', amount: 2000, status: 'APPROVED' },
-  ];
+      const monthlyRevenue = approvedPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+      return {
+        totalUsers: totalUsers || 0,
+        activeClasses: activeClasses || 0,
+        pendingPayments: pendingPayments || 0,
+        monthlyRevenue,
+      };
+    },
+  });
+
+  // Fetch recent payments
+  const { data: recentPayments = [] } = useQuery({
+    queryKey: ['admin-recent-payments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          *,
+          profiles:user_id (first_name, last_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch classes with enrollment counts
+  const { data: classStats = [] } = useQuery({
+    queryKey: ['admin-class-stats'],
+    queryFn: async () => {
+      const { data: classes, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      // Get enrollment counts for each class
+      const stats = await Promise.all((classes || []).map(async (cls) => {
+        const { count: enrolled } = await supabase
+          .from('class_enrollments')
+          .select('*', { count: 'exact', head: true })
+          .eq('class_id', cls.id)
+          .eq('status', 'ACTIVE');
+        
+        return {
+          ...cls,
+          enrolledCount: enrolled || 0,
+        };
+      }));
+
+      return stats;
+    },
+  });
+
+  if (statsLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -49,7 +114,7 @@ const AdminDashboard = () => {
                   <Users className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.totalUsers}</p>
+                  <p className="text-2xl font-bold">{stats?.totalUsers || 0}</p>
                   <p className="text-sm text-muted-foreground">Total Users</p>
                 </div>
               </div>
@@ -63,7 +128,7 @@ const AdminDashboard = () => {
                   <BookOpen className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.activeClasses}</p>
+                  <p className="text-2xl font-bold">{stats?.activeClasses || 0}</p>
                   <p className="text-sm text-muted-foreground">Active Classes</p>
                 </div>
               </div>
@@ -77,7 +142,7 @@ const AdminDashboard = () => {
                   <Clock className="w-5 h-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.pendingPayments}</p>
+                  <p className="text-2xl font-bold">{stats?.pendingPayments || 0}</p>
                   <p className="text-sm text-muted-foreground">Pending Payments</p>
                 </div>
               </div>
@@ -91,36 +156,9 @@ const AdminDashboard = () => {
                   <DollarSign className="w-5 h-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">Rs. {(stats.monthlyRevenue / 1000).toFixed(0)}k</p>
-                  <p className="text-sm text-muted-foreground">Monthly Revenue</p>
+                  <p className="text-2xl font-bold">Rs. {((stats?.monthlyRevenue || 0) / 1000).toFixed(0)}k</p>
+                  <p className="text-sm text-muted-foreground">Total Revenue</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <Card className="card-elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Today's Logins</p>
-                  <p className="text-3xl font-bold text-foreground">{stats.todayLogins}</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-success" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="card-elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">New Registrations (Today)</p>
-                  <p className="text-3xl font-bold text-foreground">{stats.newRegistrations}</p>
-                </div>
-                <Users className="w-8 h-8 text-primary" />
               </div>
             </CardContent>
           </Card>
@@ -133,34 +171,40 @@ const AdminDashboard = () => {
             <CardDescription>Latest payment submissions requiring verification</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentPayments.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <CreditCard className="w-5 h-5 text-primary" />
+            {recentPayments.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No recent payments</p>
+            ) : (
+              <div className="space-y-4">
+                {recentPayments.map((payment: any) => (
+                  <div key={payment.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <CreditCard className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {payment.profiles?.first_name} {payment.profiles?.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{payment.payment_type}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground">{payment.user}</p>
-                      <p className="text-sm text-muted-foreground">{payment.class}</p>
+                    <div className="flex items-center gap-4">
+                      <span className="font-semibold">Rs. {payment.amount?.toLocaleString()}</span>
+                      <Badge 
+                        variant="outline"
+                        className={payment.status === 'APPROVED' ? 'badge-paid' : 'badge-pending'}
+                      >
+                        {payment.status === 'APPROVED' ? (
+                          <><CheckCircle className="w-3 h-3 mr-1" /> Approved</>
+                        ) : (
+                          <><Clock className="w-3 h-3 mr-1" /> Pending</>
+                        )}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-semibold">Rs. {payment.amount.toLocaleString()}</span>
-                    <Badge 
-                      variant="outline"
-                      className={payment.status === 'APPROVED' ? 'badge-paid' : 'badge-pending'}
-                    >
-                      {payment.status === 'APPROVED' ? (
-                        <><CheckCircle className="w-3 h-3 mr-1" /> Approved</>
-                      ) : (
-                        <><Clock className="w-3 h-3 mr-1" /> Pending</>
-                      )}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -168,35 +212,31 @@ const AdminDashboard = () => {
         <Card className="card-elevated">
           <CardHeader>
             <CardTitle className="text-lg">Class Statistics</CardTitle>
-            <CardDescription>Enrollment and payment summary by class</CardDescription>
+            <CardDescription>Enrollment summary by class</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockClasses.map((cls) => (
-                <div key={cls.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div>
-                    <p className="font-medium text-foreground">{cls.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Grade {cls.gradeMin === cls.gradeMax ? cls.gradeMin : `${cls.gradeMin}-${cls.gradeMax}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-6 text-sm">
-                    <div className="text-center">
-                      <p className="font-semibold text-foreground">42</p>
-                      <p className="text-muted-foreground">Students</p>
+            {classStats.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No classes yet</p>
+            ) : (
+              <div className="space-y-4">
+                {classStats.map((cls: any) => (
+                  <div key={cls.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div>
+                      <p className="font-medium text-foreground">{cls.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Grade {cls.grade_min === cls.grade_max ? cls.grade_min : `${cls.grade_min}-${cls.grade_max}`}
+                      </p>
                     </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-success">38</p>
-                      <p className="text-muted-foreground">Paid</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-warning">4</p>
-                      <p className="text-muted-foreground">Pending</p>
+                    <div className="flex items-center gap-6 text-sm">
+                      <div className="text-center">
+                        <p className="font-semibold text-foreground">{cls.enrolledCount}</p>
+                        <p className="text-muted-foreground">Students</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

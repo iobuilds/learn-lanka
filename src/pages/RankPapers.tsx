@@ -7,9 +7,9 @@ import {
   FileText, 
   Award, 
   ChevronRight,
-  Calendar,
   CheckCircle,
-  Lock
+  Lock,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,21 +17,79 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StudentLayout from '@/components/layouts/StudentLayout';
-import { mockRankPapers } from '@/lib/mock-data';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const RankPapers = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
 
-  const filteredPapers = mockRankPapers.filter((paper) => {
+  // Fetch published rank papers
+  const { data: rankPapers = [], isLoading } = useQuery({
+    queryKey: ['rank-papers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rank_papers')
+        .select('*')
+        .eq('publish_status', 'PUBLISHED')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch user's attempts
+  const { data: attempts = [] } = useQuery({
+    queryKey: ['rank-attempts', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('rank_attempts')
+        .select('rank_paper_id, submitted_at')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch user's rank paper payments
+  const { data: paidPapers = [] } = useQuery({
+    queryKey: ['rank-payments', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('payments')
+        .select('ref_id')
+        .eq('user_id', user.id)
+        .eq('payment_type', 'RANK_PAPER')
+        .eq('status', 'APPROVED');
+      if (error) throw error;
+      return data?.map(p => p.ref_id) || [];
+    },
+    enabled: !!user,
+  });
+
+  const attemptedPaperIds = attempts.filter(a => a.submitted_at).map(a => a.rank_paper_id);
+  const completedCount = attemptedPaperIds.length;
+
+  const filteredPapers = rankPapers.filter((paper) => {
     const matchesSearch = paper.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesGrade = gradeFilter === 'all' || paper.grade.toString() === gradeFilter;
     return matchesSearch && matchesGrade;
   });
 
-  // Mock: which papers the user has attempted
-  const attemptedPapers = ['1'];
-  const paidPapers = ['1'];
+  if (isLoading) {
+    return (
+      <StudentLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </StudentLayout>
+    );
+  }
 
   return (
     <StudentLayout>
@@ -73,19 +131,19 @@ const RankPapers = () => {
         <div className="grid grid-cols-3 gap-4">
           <Card className="card-elevated">
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-primary">{attemptedPapers.length}</p>
+              <p className="text-2xl font-bold text-primary">{completedCount}</p>
               <p className="text-sm text-muted-foreground">Completed</p>
             </CardContent>
           </Card>
           <Card className="card-elevated">
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-accent">#12</p>
+              <p className="text-2xl font-bold text-accent">—</p>
               <p className="text-sm text-muted-foreground">Best Rank</p>
             </CardContent>
           </Card>
           <Card className="card-elevated">
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-success">85%</p>
+              <p className="text-2xl font-bold text-success">—</p>
               <p className="text-sm text-muted-foreground">Best Score</p>
             </CardContent>
           </Card>
@@ -103,9 +161,9 @@ const RankPapers = () => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {filteredPapers.map((paper) => {
-              const hasAttempted = attemptedPapers.includes(paper.id);
-              const hasPaid = paidPapers.includes(paper.id);
-              const needsPayment = paper.feeAmount && !hasPaid;
+              const hasAttempted = attemptedPaperIds.includes(paper.id);
+              const hasPaid = paidPapers.includes(paper.id) || !paper.fee_amount;
+              const needsPayment = paper.fee_amount && !hasPaid;
 
               return (
                 <Card key={paper.id} className="card-elevated hover:shadow-lg transition-shadow">
@@ -128,23 +186,23 @@ const RankPapers = () => {
                     <div className="flex items-center gap-4 flex-wrap text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />
-                        {paper.timeLimitMinutes} minutes
+                        {paper.time_limit_minutes} minutes
                       </span>
                       <span className="flex items-center gap-1">
                         <FileText className="w-4 h-4" />
                         {[
-                          paper.hasMcq && 'MCQ',
-                          paper.hasShortEssay && 'Short Essay',
-                          paper.hasEssay && 'Essay'
+                          paper.has_mcq && 'MCQ',
+                          paper.has_short_essay && 'Short Essay',
+                          paper.has_essay && 'Essay'
                         ].filter(Boolean).join(', ')}
                       </span>
                     </div>
 
                     {/* Fee */}
-                    {paper.feeAmount && (
+                    {paper.fee_amount && (
                       <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
                         <span className="text-sm text-muted-foreground">Paper Fee</span>
-                        <span className="font-semibold">Rs. {paper.feeAmount}</span>
+                        <span className="font-semibold">Rs. {paper.fee_amount}</span>
                       </div>
                     )}
 

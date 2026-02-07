@@ -10,12 +10,13 @@ import {
   User, 
   Menu, 
   X,
-  LogOut,
-  Settings
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { mockNotifications } from '@/lib/mock-data';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 interface StudentLayoutProps {
   children: React.ReactNode;
@@ -31,7 +32,25 @@ const navItems = [
 const StudentLayout = ({ children }: StudentLayoutProps) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const unreadCount = mockNotifications.length;
+  const { user, signOut } = useAuth();
+
+  // Fetch notification count
+  const { data: notificationCount = 0 } = useQuery({
+    queryKey: ['notification-count', user?.id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!user,
+  });
+
+  const handleLogout = async () => {
+    await signOut();
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,9 +95,9 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
               <Link to="/notifications">
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && (
+                  {notificationCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
-                      {unreadCount}
+                      {notificationCount > 9 ? '9+' : notificationCount}
                     </span>
                   )}
                 </Button>
@@ -137,14 +156,13 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
                   <User className="w-5 h-5" />
                   Profile
                 </Link>
-                <Link
-                  to="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors w-full"
                 >
                   <LogOut className="w-5 h-5" />
                   Sign Out
-                </Link>
+                </button>
               </div>
             </nav>
           </div>

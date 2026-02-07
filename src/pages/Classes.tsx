@@ -1,27 +1,71 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, BookOpen, Users, Lock, ChevronRight } from 'lucide-react';
+import { Search, Filter, BookOpen, Users, Lock, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StudentLayout from '@/components/layouts/StudentLayout';
-import { mockClasses, mockEnrolledClassIds } from '@/lib/mock-data';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const Classes = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
 
-  const filteredClasses = mockClasses.filter((cls) => {
+  // Fetch all classes
+  const { data: classes = [], isLoading: classesLoading } = useQuery({
+    queryKey: ['classes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch user's enrollments
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ['enrollments', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('class_enrollments')
+        .select('class_id')
+        .eq('user_id', user.id)
+        .eq('status', 'ACTIVE');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const enrolledClassIds = enrollments.map(e => e.class_id);
+
+  const filteredClasses = classes.filter((cls) => {
     const matchesSearch = cls.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cls.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (cls.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     
     const matchesGrade = gradeFilter === 'all' || 
-      (parseInt(gradeFilter) >= cls.gradeMin && parseInt(gradeFilter) <= cls.gradeMax);
+      (parseInt(gradeFilter) >= cls.grade_min && parseInt(gradeFilter) <= cls.grade_max);
     
     return matchesSearch && matchesGrade;
   });
+
+  if (classesLoading) {
+    return (
+      <StudentLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </StudentLayout>
+    );
+  }
 
   return (
     <StudentLayout>
@@ -71,13 +115,13 @@ const Classes = () => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredClasses.map((cls) => {
-              const isEnrolled = mockEnrolledClassIds.includes(cls.id);
+              const isEnrolled = enrolledClassIds.includes(cls.id);
               return (
                 <Card key={cls.id} className="card-elevated hover:shadow-lg transition-shadow flex flex-col">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-lg line-clamp-2">{cls.title}</CardTitle>
-                      {cls.isPrivate && (
+                      {cls.is_private && (
                         <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                       )}
                     </div>
@@ -90,10 +134,10 @@ const Classes = () => {
                       {/* Class Info */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="secondary">
-                          Grade {cls.gradeMin === cls.gradeMax ? cls.gradeMin : `${cls.gradeMin}-${cls.gradeMax}`}
+                          Grade {cls.grade_min === cls.grade_max ? cls.grade_min : `${cls.grade_min}-${cls.grade_max}`}
                         </Badge>
                         <Badge variant="outline">
-                          Rs. {cls.monthlyFeeAmount.toLocaleString()}/mo
+                          Rs. {cls.monthly_fee_amount.toLocaleString()}/mo
                         </Badge>
                         {isEnrolled && (
                           <Badge className="bg-success/10 text-success border-success/20">

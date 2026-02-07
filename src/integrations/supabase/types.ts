@@ -44,6 +44,41 @@ export type Database = {
         }
         Relationships: []
       }
+      class_days: {
+        Row: {
+          class_month_id: string
+          created_at: string
+          date: string
+          id: string
+          is_extra: boolean
+          title: string
+        }
+        Insert: {
+          class_month_id: string
+          created_at?: string
+          date: string
+          id?: string
+          is_extra?: boolean
+          title: string
+        }
+        Update: {
+          class_month_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          is_extra?: boolean
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_days_class_month_id_fkey"
+            columns: ["class_month_id"]
+            isOneToOne: false
+            referencedRelation: "class_months"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       class_enrollments: {
         Row: {
           class_id: string
@@ -143,6 +178,80 @@ export type Database = {
           is_private?: boolean
           monthly_fee_amount?: number
           private_code?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      lessons: {
+        Row: {
+          class_day_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          notes_text: string | null
+          pdf_url: string | null
+          title: string
+          youtube_url: string | null
+        }
+        Insert: {
+          class_day_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          notes_text?: string | null
+          pdf_url?: string | null
+          title: string
+          youtube_url?: string | null
+        }
+        Update: {
+          class_day_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          notes_text?: string | null
+          pdf_url?: string | null
+          title?: string
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_class_day_id_fkey"
+            columns: ["class_day_id"]
+            isOneToOne: false
+            referencedRelation: "class_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          target_ref: string | null
+          target_type: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          target_ref?: string | null
+          target_type: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          target_ref?: string | null
+          target_type?: string
           title?: string
         }
         Relationships: []
@@ -533,6 +642,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shop_products: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          price_both: number | null
+          price_printed: number | null
+          price_soft: number | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          price_both?: number | null
+          price_printed?: number | null
+          price_soft?: number | null
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          price_both?: number | null
+          price_printed?: number | null
+          price_soft?: number | null
+          title?: string
+          type?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

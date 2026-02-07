@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -7,10 +6,10 @@ import {
   FileText, 
   Book, 
   Package,
-  ChevronRight,
   Plus,
   Minus,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,8 +19,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import StudentLayout from '@/components/layouts/StudentLayout';
-import { mockShopProducts } from '@/lib/mock-data';
-import { ProductType } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+
+type ProductType = 'SOFT' | 'PRINTED' | 'BOTH';
 
 interface CartItem {
   productId: string;
@@ -34,11 +35,25 @@ const Shop = () => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  const filteredProducts = mockShopProducts.filter((product) => {
+  // Fetch products from database
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ['shop-products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shop_products')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const filteredProducts = products.filter((product) => {
     const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (product.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     const matchesType = typeFilter === 'all' || product.type === typeFilter || product.type === 'BOTH';
-    return matchesSearch && matchesType && product.isActive;
+    return matchesSearch && matchesType;
   });
 
   const addToCart = (productId: string, selectedType: ProductType) => {
@@ -69,21 +84,31 @@ const Shop = () => {
     }).filter(item => item.quantity > 0));
   };
 
-  const getPrice = (product: typeof mockShopProducts[0], type: ProductType) => {
+  const getPrice = (product: any, type: ProductType) => {
     switch (type) {
-      case 'SOFT': return product.priceSoft || 0;
-      case 'PRINTED': return product.pricePrinted || 0;
-      case 'BOTH': return product.priceBoth || 0;
+      case 'SOFT': return product.price_soft || 0;
+      case 'PRINTED': return product.price_printed || 0;
+      case 'BOTH': return product.price_both || 0;
     }
   };
 
   const cartTotal = cart.reduce((sum, item) => {
-    const product = mockShopProducts.find(p => p.id === item.productId);
+    const product = products.find(p => p.id === item.productId);
     if (!product) return sum;
     return sum + getPrice(product, item.selectedType) * item.quantity;
   }, 0);
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  if (isLoading) {
+    return (
+      <StudentLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </StudentLayout>
+    );
+  }
 
   return (
     <StudentLayout>
@@ -121,7 +146,7 @@ const Shop = () => {
               {cart.length > 0 && (
                 <div className="mt-6 space-y-4">
                   {cart.map((item) => {
-                    const product = mockShopProducts.find(p => p.id === item.productId);
+                    const product = products.find(p => p.id === item.productId);
                     if (!product) return null;
                     const price = getPrice(product, item.selectedType);
                     
@@ -237,14 +262,14 @@ const Shop = () => {
                 <CardContent className="flex-1 flex flex-col justify-end space-y-4">
                   {/* Pricing Options */}
                   <div className="space-y-2">
-                    {product.priceSoft && (
+                    {product.price_soft && (
                       <div className="flex items-center justify-between p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-muted-foreground" />
                           <span className="text-sm">Soft Copy (PDF)</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold">Rs. {product.priceSoft.toLocaleString()}</span>
+                          <span className="font-semibold">Rs. {product.price_soft.toLocaleString()}</span>
                           <Button 
                             size="sm" 
                             variant="ghost"
@@ -255,14 +280,14 @@ const Shop = () => {
                         </div>
                       </div>
                     )}
-                    {product.pricePrinted && (
+                    {product.price_printed && (
                       <div className="flex items-center justify-between p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
                         <div className="flex items-center gap-2">
                           <Package className="w-4 h-4 text-muted-foreground" />
                           <span className="text-sm">Printed Copy</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold">Rs. {product.pricePrinted.toLocaleString()}</span>
+                          <span className="font-semibold">Rs. {product.price_printed.toLocaleString()}</span>
                           <Button 
                             size="sm" 
                             variant="ghost"
@@ -273,7 +298,7 @@ const Shop = () => {
                         </div>
                       </div>
                     )}
-                    {product.priceBoth && (
+                    {product.price_both && (
                       <div className="flex items-center justify-between p-2 rounded-lg bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-colors">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="bg-accent/10 text-accent border-accent/30 text-xs">
@@ -282,7 +307,7 @@ const Shop = () => {
                           <span className="text-sm">Both</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold">Rs. {product.priceBoth.toLocaleString()}</span>
+                          <span className="font-semibold">Rs. {product.price_both.toLocaleString()}</span>
                           <Button 
                             size="sm" 
                             variant="ghost"

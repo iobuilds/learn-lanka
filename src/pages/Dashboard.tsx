@@ -7,18 +7,96 @@ import {
   TrendingUp,
   Calendar,
   ChevronRight,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StudentLayout from '@/components/layouts/StudentLayout';
-import { mockClasses, mockEnrolledClassIds, mockPaymentStatus, mockCurrentUser, mockRankPapers } from '@/lib/mock-data';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 const Dashboard = () => {
-  const enrolledClasses = mockClasses.filter(c => mockEnrolledClassIds.includes(c.id));
+  const { user, profile } = useAuth();
   const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+  const currentYearMonth = new Date().toISOString().slice(0, 7);
+
+  // Fetch enrolled classes
+  const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
+    queryKey: ['enrollments', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('class_enrollments')
+        .select(`
+          *,
+          classes (*)
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'ACTIVE');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch payments for current month
+  const { data: payments = [] } = useQuery({
+    queryKey: ['payments', user?.id, currentYearMonth],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*, class_months!inner(year_month, class_id)')
+        .eq('user_id', user.id)
+        .eq('payment_type', 'CLASS_MONTHLY');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch available rank papers
+  const { data: rankPapers = [] } = useQuery({
+    queryKey: ['rank-papers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rank_papers')
+        .select('*')
+        .eq('publish_status', 'PUBLISHED')
+        .order('created_at', { ascending: false })
+        .limit(4);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Get payment status for a class
+  const getPaymentStatus = (classId: string): 'PAID' | 'PENDING' | 'UNPAID' => {
+    const payment = payments.find(p => {
+      const classMonth = p.class_months as any;
+      return classMonth?.class_id === classId && classMonth?.year_month === currentYearMonth;
+    });
+    if (!payment) return 'UNPAID';
+    if (payment.status === 'APPROVED') return 'PAID';
+    if (payment.status === 'PENDING') return 'PENDING';
+    return 'UNPAID';
+  };
+
+  const paidCount = enrollments.filter(e => getPaymentStatus(e.class_id) === 'PAID').length;
+
+  if (enrollmentsLoading) {
+    return (
+      <StudentLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </StudentLayout>
+    );
+  }
 
   return (
     <StudentLayout>
@@ -27,7 +105,7 @@ const Dashboard = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              Welcome back, {mockCurrentUser.firstName}! 👋
+              Welcome back, {profile?.first_name || 'Student'}! 👋
             </h1>
             <p className="text-muted-foreground mt-1">
               Continue your learning journey
@@ -50,7 +128,7 @@ const Dashboard = () => {
                   <BookOpen className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{enrolledClasses.length}</p>
+                  <p className="text-2xl font-bold">{enrollments.length}</p>
                   <p className="text-sm text-muted-foreground">Enrolled Classes</p>
                 </div>
               </div>
@@ -64,9 +142,7 @@ const Dashboard = () => {
                   <CreditCard className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {Object.values(mockPaymentStatus).filter(s => s === 'PAID').length}
-                  </p>
+                  <p className="text-2xl font-bold">{paidCount}</p>
                   <p className="text-sm text-muted-foreground">Paid This Month</p>
                 </div>
               </div>
@@ -80,7 +156,7 @@ const Dashboard = () => {
                   <FileText className="w-5 h-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{mockRankPapers.length}</p>
+                  <p className="text-2xl font-bold">{rankPapers.length}</p>
                   <p className="text-sm text-muted-foreground">Available Papers</p>
                 </div>
               </div>
@@ -94,7 +170,7 @@ const Dashboard = () => {
                   <TrendingUp className="w-5 h-5 text-secondary-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">#12</p>
+                  <p className="text-2xl font-bold">—</p>
                   <p className="text-sm text-muted-foreground">Your Rank</p>
                 </div>
               </div>
@@ -111,7 +187,7 @@ const Dashboard = () => {
             </Link>
           </div>
 
-          {enrolledClasses.length === 0 ? (
+          {enrollments.length === 0 ? (
             <Card className="card-elevated">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <BookOpen className="w-12 h-12 text-muted-foreground mb-4" />
@@ -124,13 +200,14 @@ const Dashboard = () => {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {enrolledClasses.map((cls) => {
-                const paymentStatus = mockPaymentStatus[cls.id] || 'UNPAID';
+              {enrollments.map((enrollment) => {
+                const cls = enrollment.classes as any;
+                const paymentStatus = getPaymentStatus(enrollment.class_id);
                 return (
-                  <Card key={cls.id} className="card-elevated hover:shadow-lg transition-shadow">
+                  <Card key={enrollment.id} className="card-elevated hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{cls.title}</CardTitle>
+                        <CardTitle className="text-lg">{cls?.title}</CardTitle>
                         <Badge 
                           variant="outline"
                           className={cn(
@@ -145,7 +222,7 @@ const Dashboard = () => {
                         </Badge>
                       </div>
                       <CardDescription className="line-clamp-2">
-                        {cls.description}
+                        {cls?.description}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -155,9 +232,9 @@ const Dashboard = () => {
                             <Calendar className="w-4 h-4" />
                             {currentMonth}
                           </span>
-                          <span>Rs. {cls.monthlyFeeAmount.toLocaleString()}/mo</span>
+                          <span>Rs. {cls?.monthly_fee_amount?.toLocaleString()}/mo</span>
                         </div>
-                        <Link to={`/classes/${cls.id}`}>
+                        <Link to={`/classes/${enrollment.class_id}`}>
                           <Button variant="ghost" size="sm">
                             View
                             <ChevronRight className="w-4 h-4" />
@@ -220,50 +297,52 @@ const Dashboard = () => {
         </div>
 
         {/* Upcoming Rank Papers */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Available Rank Papers</h2>
-            <Link to="/rank-papers" className="text-sm text-primary hover:text-primary/80">
-              View All
-            </Link>
-          </div>
+        {rankPapers.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Available Rank Papers</h2>
+              <Link to="/rank-papers" className="text-sm text-primary hover:text-primary/80">
+                View All
+              </Link>
+            </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {mockRankPapers.slice(0, 2).map((paper) => (
-              <Card key={paper.id} className="card-elevated">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-medium text-foreground">{paper.title}</h3>
-                      <p className="text-sm text-muted-foreground">Grade {paper.grade}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {rankPapers.slice(0, 2).map((paper) => (
+                <Card key={paper.id} className="card-elevated">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-medium text-foreground">{paper.title}</h3>
+                        <p className="text-sm text-muted-foreground">Grade {paper.grade}</p>
+                      </div>
+                      {paper.fee_amount && (
+                        <Badge variant="outline">Rs. {paper.fee_amount}</Badge>
+                      )}
                     </div>
-                    {paper.feeAmount && (
-                      <Badge variant="outline">Rs. {paper.feeAmount}</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      {paper.timeLimitMinutes} mins
-                    </span>
-                    <span>
-                      {[
-                        paper.hasMcq && 'MCQ',
-                        paper.hasShortEssay && 'Short Essay',
-                        paper.hasEssay && 'Essay'
-                      ].filter(Boolean).join(' • ')}
-                    </span>
-                  </div>
-                  <Link to={`/rank-papers/${paper.id}`}>
-                    <Button variant="outline" className="w-full">
-                      Start Paper
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {paper.time_limit_minutes} mins
+                      </span>
+                      <span>
+                        {[
+                          paper.has_mcq && 'MCQ',
+                          paper.has_short_essay && 'Short Essay',
+                          paper.has_essay && 'Essay'
+                        ].filter(Boolean).join(' • ')}
+                      </span>
+                    </div>
+                    <Link to={`/rank-papers/${paper.id}`}>
+                      <Button variant="outline" className="w-full">
+                        Start Paper
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </StudentLayout>
   );
