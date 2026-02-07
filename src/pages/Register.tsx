@@ -122,7 +122,7 @@ const Register = () => {
     try {
       // Format phone for email-like signup
       const formattedPhone = phone.replace(/\D/g, '');
-      const phoneEmail = `${formattedPhone}@phone.iobuilds.lk`;
+      const phoneEmail = `${formattedPhone}@phone.alict.lk`;
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: phoneEmail,
@@ -227,14 +227,14 @@ const Register = () => {
         <div className="text-center lg:text-left lg:flex-1 lg:max-w-lg">
           <div className="mb-6">
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-3">
-              IO Builds
+              A/L ICT
             </h1>
             <p className="text-lg md:text-xl text-slate-300">
-              Learn. Build. Succeed.
+              Advanced Level ICT Education
             </p>
           </div>
           <p className="text-slate-400 text-sm md:text-base max-w-md">
-            Join thousands of students transforming their future through quality education and practical skills.
+            Join thousands of students mastering Information & Communication Technology with expert guidance.
           </p>
         </div>
 
@@ -497,6 +497,7 @@ const Register = () => {
       {/* Footer */}
       <footer className="py-6 px-4 text-center">
         <p className="text-slate-400 text-sm">
+          © {new Date().getFullYear()} A/L ICT. All rights reserved.
           © {new Date().getFullYear()} IO Builds. All rights reserved.
         </p>
       </footer>
