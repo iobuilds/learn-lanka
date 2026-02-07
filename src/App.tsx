@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
 
 // Auth Pages
 import Login from "./pages/Login";
@@ -14,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import Classes from "./pages/Classes";
 import ClassDetail from "./pages/ClassDetail";
 import RankPapers from "./pages/RankPapers";
+import RankPaperAttempt from "./pages/RankPaperAttempt";
 import Shop from "./pages/Shop";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
@@ -32,41 +34,44 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Student Routes */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/classes" element={<Classes />} />
-          <Route path="/classes/:id" element={<ClassDetail />} />
-          <Route path="/rank-papers" element={<RankPapers />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/profile" element={<Profile />} />
+            {/* Student Routes */}
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/classes" element={<Classes />} />
+            <Route path="/classes/:id" element={<ClassDetail />} />
+            <Route path="/rank-papers" element={<RankPapers />} />
+            <Route path="/rank-papers/:id/attempt" element={<RankPaperAttempt />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/profile" element={<Profile />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/moderators" element={<AdminUsers />} />
-          <Route path="/admin/classes" element={<AdminClasses />} />
-          <Route path="/admin/payments" element={<AdminPayments />} />
-          <Route path="/admin/coupons" element={<AdminPayments />} />
-          <Route path="/admin/rank-papers" element={<AdminClasses />} />
-          <Route path="/admin/shop" element={<AdminClasses />} />
-          <Route path="/admin/notifications" element={<AdminSettings />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/moderators" element={<AdminUsers />} />
+            <Route path="/admin/classes" element={<AdminClasses />} />
+            <Route path="/admin/payments" element={<AdminPayments />} />
+            <Route path="/admin/coupons" element={<AdminPayments />} />
+            <Route path="/admin/rank-papers" element={<AdminClasses />} />
+            <Route path="/admin/shop" element={<AdminClasses />} />
+            <Route path="/admin/notifications" element={<AdminSettings />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
 
-          {/* Catch-all */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
