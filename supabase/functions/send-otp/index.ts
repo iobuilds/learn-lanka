@@ -1,0 +1,149 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface SendOtpRequest {
+  phone: string;
+  purpose: 'REGISTER' | 'LOGIN' | 'RECOVERY' | 'PRIVATE_ENROLL';
+}
+
+// Generate 6-digit OTP
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Format phone to international format (94xxxxxxxxx)
+function formatPhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // If starts with 0, replace with 94
+  if (cleaned.startsWith('0')) {
+    cleaned = '94' + cleaned.substring(1);
+  }
+  
+  // If doesn't start with 94, add it
+  if (!cleaned.startsWith('94')) {
+    cleaned = '94' + cleaned;
+  }
+  
+  return cleaned;
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { phone, purpose }: SendOtpRequest = await req.json();
+
+    if (!phone || !purpose) {
+      return new Response(
+        JSON.stringify({ error: 'Phone and purpose are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Format phone number
+    const formattedPhone = formatPhone(phone);
+    
+    // Generate OTP
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Get Text.lk credentials
+    const apiToken = Deno.env.get('TEXTLK_API_TOKEN');
+    const senderId = Deno.env.get('TEXTLK_SENDER_ID');
+
+    if (!apiToken || !senderId) {
+      console.error('Missing Text.lk credentials');
+      return new Response(
+        JSON.stringify({ error: 'SMS service not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Store OTP in database (we'll create an otp_requests table)
+    // For now, we'll use a simple in-memory approach with the SMS
+    
+    // Send SMS via Text.lk API
+    const smsMessage = `Your ICT Academy verification code is: ${otp}. Valid for 5 minutes.`;
+    
+    const smsResponse = await fetch('https://app.text.lk/api/v3/sms/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        recipient: formattedPhone,
+        sender_id: senderId,
+        type: 'plain',
+        message: smsMessage,
+      }),
+    });
+
+    const smsResult = await smsResponse.json();
+
+    if (smsResult.status === 'error') {
+      console.error('SMS API error:', smsResult.message);
+      return new Response(
+        JSON.stringify({ error: 'Failed to send SMS', details: smsResult.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Store OTP hash in database for verification
+    // Using SHA-256 hash for security
+    const encoder = new TextEncoder();
+    const data = encoder.encode(otp + phone);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const otpHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Store in otp_requests table
+    const { error: dbError } = await supabase
+      .from('otp_requests')
+      .upsert({
+        phone: formattedPhone,
+        otp_hash: otpHash,
+        purpose,
+        expires_at: expiresAt.toISOString(),
+        attempts: 0,
+      }, {
+        onConflict: 'phone,purpose'
+      });
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      // Continue even if DB fails - OTP was already sent
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'OTP sent successfully',
+        phone: formattedPhone.slice(-4), // Return last 4 digits for display
+        expiresIn: 300 // 5 minutes in seconds
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
