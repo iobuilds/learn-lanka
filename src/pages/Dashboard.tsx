@@ -50,9 +50,9 @@ const Dashboard = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('payments')
-        .select('*, class_months!inner(year_month, class_id)')
+        .select('*')
         .eq('user_id', user.id)
-        .eq('payment_type', 'CLASS_MONTHLY');
+        .eq('payment_type', 'CLASS_MONTH');
       if (error) throw error;
       return data || [];
     },
@@ -76,10 +76,9 @@ const Dashboard = () => {
 
   // Get payment status for a class
   const getPaymentStatus = (classId: string): 'PAID' | 'PENDING' | 'UNPAID' => {
-    const payment = payments.find(p => {
-      const classMonth = p.class_months as any;
-      return classMonth?.class_id === classId && classMonth?.year_month === currentYearMonth;
-    });
+    // ref_id format for class payments: classId-yearMonth
+    const expectedRefId = `${classId}-${currentYearMonth}`;
+    const payment = payments.find(p => p.ref_id === expectedRefId);
     if (!payment) return 'UNPAID';
     if (payment.status === 'APPROVED') return 'PAID';
     if (payment.status === 'PENDING') return 'PENDING';
