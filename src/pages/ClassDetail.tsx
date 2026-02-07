@@ -546,18 +546,21 @@ const ClassDetail = () => {
                     )}
                   </div>
 
-                  {paymentStatus === 'UNPAID' && id && (
+                  {paymentStatus !== 'PAID' && id && (
                     <PaymentUploadForm 
-                      classId={id} 
-                      yearMonth={selectedMonth} 
+                      paymentType="CLASS_MONTH"
+                      refId={`${id}-${selectedMonth}`}
                       amount={classData.monthly_fee_amount}
+                      title={`${selectedMonth} Fee`}
+                      currentStatus={currentPayment?.status as 'PENDING' | 'APPROVED' | 'REJECTED' | null}
+                      onSuccess={() => queryClient.invalidateQueries({ queryKey: ['class-payment'] })}
                     />
                   )}
                 </CardContent>
               </Card>
 
               {/* Bank Accounts */}
-              <BankAccountsList accounts={bankAccounts} />
+              <BankAccountsList />
             </div>
           </TabsContent>
 
