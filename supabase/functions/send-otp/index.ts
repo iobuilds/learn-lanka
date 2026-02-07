@@ -72,8 +72,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Store OTP in database (we'll create an otp_requests table)
-    // For now, we'll use a simple in-memory approach with the SMS
+    // For REGISTER purpose, check if user already exists
+    if (purpose === 'REGISTER') {
+      const phoneEmail = `${formattedPhone.replace(/^94/, '')}@phone.alict.lk`;
+      const phoneEmailAlt = `${formattedPhone}@phone.alict.lk`;
+      
+      // Check profiles table for existing phone
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .or(`phone.eq.${formattedPhone},phone.eq.${formattedPhone.replace(/^94/, '0')}`)
+        .maybeSingle();
+
+      if (existingProfile) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Phone number already registered',
+            alreadyRegistered: true,
+            message: 'This phone number is already registered. Please sign in instead.'
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     // Send SMS via Text.lk API
     const smsMessage = `Your ICT Academy verification code is: ${otp}. Valid for 5 minutes.`;
