@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -22,10 +23,12 @@ import StudentLayout from '@/components/layouts/StudentLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import EditProfileDialog from '@/components/profile/EditProfileDialog';
 
 const Profile = () => {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const navigate = useNavigate();
-  const { user, profile, signOut, loading } = useAuth();
+  const { user, profile, signOut, loading, refreshProfile } = useAuth();
   const currentYearMonth = new Date().toISOString().slice(0, 7);
 
   // Fetch enrollments
@@ -112,10 +115,17 @@ const Profile = () => {
                   </Badge>
                 </div>
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>
+
+        <EditProfileDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          profile={profile}
+          onSuccess={refreshProfile}
+        />
             </div>
           </CardContent>
         </Card>
