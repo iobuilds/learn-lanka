@@ -23,61 +23,88 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<any | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
 
-  const fetchProfile = async (userId: string) => {
+  // Fetch profile and roles - returns the roles for immediate use
+  const fetchProfileAndRoles = async (userId: string): Promise<string[]> => {
     try {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const [profileResult, rolesResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single(),
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+      ]);
       
-      const { data: rolesData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      
-      setProfile(profileData);
-      setRoles(rolesData?.map(r => r.role) || ['student']);
+      setProfile(profileResult.data);
+      const userRoles = rolesResult.data?.map(r => r.role) || ['student'];
+      setRoles(userRoles);
+      return userRoles;
     } catch (error) {
       console.error('Error fetching profile:', error);
+      setRoles(['student']);
+      return ['student'];
     }
   };
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id);
+      await fetchProfileAndRoles(user.id);
     }
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    let isMounted = true;
+
+    // INITIAL load - controls isLoading
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        // Fetch roles BEFORE setting loading false - critical for admin detection
+        if (session?.user) {
+          await fetchProfileAndRoles(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error during initial auth setup:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    // Listener for ONGOING auth changes - does NOT control isLoading
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock
-          setTimeout(() => fetchProfile(session.user.id), 0);
+          // Fire and forget - don't await to avoid deadlock
+          fetchProfileAndRoles(session.user.id);
         } else {
           setProfile(null);
           setRoles([]);
         }
-        setLoading(false);
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-      setLoading(false);
-    });
+    initializeAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
