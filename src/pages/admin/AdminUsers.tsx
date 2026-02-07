@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { 
   Search, 
-  Filter, 
   MoreVertical, 
   User, 
-  Phone, 
-  School,
   Ban,
   CheckCircle,
-  Key
+  Shield,
+  ShieldOff,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -30,32 +29,130 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { cn } from '@/lib/utils';
-
-// Mock users data
-const mockUsers = [
-  { id: '1', phone: '0771234567', firstName: 'Kasun', lastName: 'Perera', school: 'Royal College', grade: 12, status: 'ACTIVE', enrolledClasses: 2 },
-  { id: '2', phone: '0772345678', firstName: 'Nimali', lastName: 'Silva', school: 'Visakha Vidyalaya', grade: 11, status: 'ACTIVE', enrolledClasses: 1 },
-  { id: '3', phone: '0773456789', firstName: 'Tharindu', lastName: 'Fernando', school: 'Ananda College', grade: 13, status: 'SUSPENDED', enrolledClasses: 3 },
-  { id: '4', phone: '0774567890', firstName: 'Sachini', lastName: 'Dias', school: "St. Bridget's Convent", grade: 9, status: 'ACTIVE', enrolledClasses: 1 },
-  { id: '5', phone: '0775678901', firstName: 'Ravindu', lastName: 'Jayasinghe', school: 'D.S. Senanayake College', grade: 12, status: 'ACTIVE', enrolledClasses: 2 },
-];
+import { 
+  useAdminUsers, 
+  useUpdateUserStatus, 
+  useAddModeratorRole, 
+  useRemoveModeratorRole,
+  UserWithDetails 
+} from '@/hooks/useAdminUsers';
+import { useAuth } from '@/hooks/useAuth';
 
 const AdminUsers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  
+  // Confirmation dialogs
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'suspend' | 'activate' | 'add_mod' | 'remove_mod';
+    user: UserWithDetails;
+  } | null>(null);
 
-  const filteredUsers = mockUsers.filter((user) => {
+  const { isAdmin } = useAuth();
+  const { data: users = [], isLoading, error } = useAdminUsers();
+  const updateStatus = useUpdateUserStatus();
+  const addModerator = useAddModeratorRole();
+  const removeModerator = useRemoveModeratorRole();
+
+  const filteredUsers = users.filter((user) => {
     const matchesSearch = 
-      user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.phone.includes(searchQuery);
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    const matchesGrade = gradeFilter === 'all' || user.grade.toString() === gradeFilter;
-    return matchesSearch && matchesStatus && matchesGrade;
+    const matchesGrade = gradeFilter === 'all' || user.grade?.toString() === gradeFilter;
+    const matchesRole = roleFilter === 'all' || 
+      (roleFilter === 'moderator' && user.roles.includes('moderator')) ||
+      (roleFilter === 'student' && !user.roles.includes('moderator') && !user.roles.includes('admin'));
+    return matchesSearch && matchesStatus && matchesGrade && matchesRole;
   });
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    
+    const { type, user } = confirmAction;
+    
+    switch (type) {
+      case 'suspend':
+        await updateStatus.mutateAsync({ userId: user.id, status: 'SUSPENDED' });
+        break;
+      case 'activate':
+        await updateStatus.mutateAsync({ userId: user.id, status: 'ACTIVE' });
+        break;
+      case 'add_mod':
+        await addModerator.mutateAsync(user.id);
+        break;
+      case 'remove_mod':
+        await removeModerator.mutateAsync(user.id);
+        break;
+    }
+    
+    setConfirmAction(null);
+  };
+
+  const getConfirmationText = () => {
+    if (!confirmAction) return { title: '', description: '' };
+    const { type, user } = confirmAction;
+    const name = `${user.first_name} ${user.last_name}`;
+    
+    switch (type) {
+      case 'suspend':
+        return {
+          title: 'Suspend User',
+          description: `Are you sure you want to suspend ${name}? They will not be able to access the platform.`
+        };
+      case 'activate':
+        return {
+          title: 'Activate User',
+          description: `Are you sure you want to activate ${name}? They will regain access to the platform.`
+        };
+      case 'add_mod':
+        return {
+          title: 'Add Moderator Role',
+          description: `Are you sure you want to make ${name} a moderator? They will be able to manage content and verify payments.`
+        };
+      case 'remove_mod':
+        return {
+          title: 'Remove Moderator Role',
+          description: `Are you sure you want to remove moderator role from ${name}?`
+        };
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-destructive">Failed to load users</p>
+          <p className="text-sm text-muted-foreground">{(error as Error).message}</p>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -64,10 +161,10 @@ const AdminUsers = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Users</h1>
-            <p className="text-muted-foreground">Manage student accounts</p>
+            <p className="text-muted-foreground">Manage student and moderator accounts</p>
           </div>
           <Badge variant="secondary" className="w-fit">
-            {mockUsers.length} total users
+            {users.length} total users
           </Badge>
         </div>
 
@@ -92,6 +189,16 @@ const AdminUsers = () => {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="ACTIVE">Active</SelectItem>
                   <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="moderator">Moderators</SelectItem>
+                  <SelectItem value="student">Students Only</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={gradeFilter} onValueChange={setGradeFilter}>
@@ -121,6 +228,7 @@ const AdminUsers = () => {
                     <TableHead>School</TableHead>
                     <TableHead>Grade</TableHead>
                     <TableHead>Classes</TableHead>
+                    <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -130,16 +238,39 @@ const AdminUsers = () => {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="w-4 h-4 text-primary" />
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            user.roles.includes('admin') 
+                              ? "bg-destructive/10" 
+                              : user.roles.includes('moderator')
+                              ? "bg-warning/10"
+                              : "bg-primary/10"
+                          )}>
+                            {user.roles.includes('admin') || user.roles.includes('moderator') ? (
+                              <Shield className={cn(
+                                "w-4 h-4",
+                                user.roles.includes('admin') ? "text-destructive" : "text-warning"
+                              )} />
+                            ) : (
+                              <User className="w-4 h-4 text-primary" />
+                            )}
                           </div>
-                          <span className="font-medium">{user.firstName} {user.lastName}</span>
+                          <span className="font-medium">{user.first_name} {user.last_name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm">{user.phone}</TableCell>
-                      <TableCell>{user.school}</TableCell>
-                      <TableCell>Grade {user.grade}</TableCell>
-                      <TableCell>{user.enrolledClasses}</TableCell>
+                      <TableCell>{user.school_name || '-'}</TableCell>
+                      <TableCell>{user.grade ? `Grade ${user.grade}` : '-'}</TableCell>
+                      <TableCell>{user.enrolled_classes}</TableCell>
+                      <TableCell>
+                        {user.roles.includes('admin') ? (
+                          <Badge variant="destructive">Admin</Badge>
+                        ) : user.roles.includes('moderator') ? (
+                          <Badge className="bg-warning text-warning-foreground">Moderator</Badge>
+                        ) : (
+                          <Badge variant="secondary">Student</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge 
                           variant="outline"
@@ -162,22 +293,42 @@ const AdminUsers = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <User className="w-4 h-4 mr-2" />
-                              View Profile
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Key className="w-4 h-4 mr-2" />
-                              Reset Password
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className={user.status === 'ACTIVE' ? 'text-destructive' : 'text-success'}>
-                              {user.status === 'ACTIVE' ? (
-                                <><Ban className="w-4 h-4 mr-2" /> Suspend User</>
-                              ) : (
-                                <><CheckCircle className="w-4 h-4 mr-2" /> Activate User</>
-                              )}
-                            </DropdownMenuItem>
+                            {/* Only admins can manage moderator roles */}
+                            {isAdmin && !user.roles.includes('admin') && (
+                              <>
+                                {user.roles.includes('moderator') ? (
+                                  <DropdownMenuItem 
+                                    onClick={() => setConfirmAction({ type: 'remove_mod', user })}
+                                  >
+                                    <ShieldOff className="w-4 h-4 mr-2" />
+                                    Remove Moderator
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem 
+                                    onClick={() => setConfirmAction({ type: 'add_mod', user })}
+                                  >
+                                    <Shield className="w-4 h-4 mr-2" />
+                                    Make Moderator
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {!user.roles.includes('admin') && (
+                              <DropdownMenuItem 
+                                className={user.status === 'ACTIVE' ? 'text-destructive' : 'text-success'}
+                                onClick={() => setConfirmAction({ 
+                                  type: user.status === 'ACTIVE' ? 'suspend' : 'activate', 
+                                  user 
+                                })}
+                              >
+                                {user.status === 'ACTIVE' ? (
+                                  <><Ban className="w-4 h-4 mr-2" /> Suspend User</>
+                                ) : (
+                                  <><CheckCircle className="w-4 h-4 mr-2" /> Activate User</>
+                                )}
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -197,6 +348,24 @@ const AdminUsers = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{getConfirmationText().title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {getConfirmationText().description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmAction}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

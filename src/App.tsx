@@ -23,6 +23,7 @@ import Profile from "./pages/Profile";
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminModerators from "./pages/admin/AdminModerators";
 import AdminClasses from "./pages/admin/AdminClasses";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
@@ -58,7 +59,7 @@ const App = () => (
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/moderators" element={<AdminUsers />} />
+            <Route path="/admin/moderators" element={<AdminModerators />} />
             <Route path="/admin/classes" element={<AdminClasses />} />
             <Route path="/admin/payments" element={<AdminPayments />} />
             <Route path="/admin/coupons" element={<AdminPayments />} />
