@@ -28,7 +28,8 @@ import EditProfileDialog from '@/components/profile/EditProfileDialog';
 const Profile = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const navigate = useNavigate();
-  const { user, profile, signOut, loading, refreshProfile } = useAuth();
+  const auth = useAuth();
+  const { user, profile, signOut, loading, refreshProfile } = auth;
   const currentYearMonth = new Date().toISOString().slice(0, 7);
 
   // Fetch enrollments
