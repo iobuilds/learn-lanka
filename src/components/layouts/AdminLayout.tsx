@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, Navigate } from 'react-router-dom';
 import { 
   GraduationCap, 
   LayoutDashboard, 
@@ -15,10 +15,12 @@ import {
   Tag,
   ShoppingBag,
   Award,
-  Shield
+  Shield,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -41,6 +43,21 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAdmin, isModerator, loading } = useAuth();
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Redirect non-admin/moderator users
+  if (!isAdmin && !isModerator) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background flex">

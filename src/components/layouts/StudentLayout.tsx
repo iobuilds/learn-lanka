@@ -10,7 +10,8 @@ import {
   User, 
   Menu, 
   X,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -32,7 +33,7 @@ const navItems = [
 const StudentLayout = ({ children }: StudentLayoutProps) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin, isModerator } = useAuth();
 
   // Fetch notification count
   const { data: notificationCount = 0 } = useQuery({
@@ -103,6 +104,16 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
                 </Button>
               </Link>
 
+              {/* Admin Panel Link */}
+              {(isAdmin || isModerator) && (
+                <Link to="/admin" className="hidden sm:block">
+                  <Button variant="outline" size="sm" className="gap-2 text-primary border-primary">
+                    <Shield className="w-4 h-4" />
+                    Admin
+                  </Button>
+                </Link>
+              )}
+
               {/* Profile */}
               <Link to="/profile" className="hidden sm:block">
                 <Button variant="ghost" size="icon">
@@ -148,6 +159,16 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
                 );
               })}
               <div className="border-t my-2 pt-2">
+                {(isAdmin || isModerator) && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <Shield className="w-5 h-5" />
+                    Admin Panel
+                  </Link>
+                )}
                 <Link
                   to="/profile"
                   onClick={() => setMobileMenuOpen(false)}
