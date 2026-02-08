@@ -37,6 +37,7 @@ const RankPaperLeaderboard = () => {
   const { data: leaderboard = [], isLoading: loadingLeaderboard } = useQuery({
     queryKey: ['rank-leaderboard', id],
     queryFn: async () => {
+      // Only get marks for attempts that were submitted (participated users only)
       const { data, error } = await supabase
         .from('rank_marks')
         .select(`
@@ -48,7 +49,8 @@ const RankPaperLeaderboard = () => {
           attempt_id,
           rank_attempts!inner (
             user_id,
-            rank_paper_id
+            rank_paper_id,
+            submitted_at
           )
         `)
         .not('published_at', 'is', null)
@@ -56,8 +58,11 @@ const RankPaperLeaderboard = () => {
       
       if (error) throw error;
       
-      // Filter by paper_id and get user profiles
-      const paperMarks = data?.filter((m: any) => m.rank_attempts?.rank_paper_id === id) || [];
+      // Filter by paper_id and only include submitted attempts (participated users)
+      const paperMarks = data?.filter((m: any) => 
+        m.rank_attempts?.rank_paper_id === id && 
+        m.rank_attempts?.submitted_at !== null
+      ) || [];
       
       // Fetch profiles for these users
       const userIds = paperMarks.map((m: any) => m.rank_attempts?.user_id).filter(Boolean);
