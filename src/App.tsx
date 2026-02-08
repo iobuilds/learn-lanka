@@ -26,6 +26,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminModerators from "./pages/admin/AdminModerators";
 import AdminClasses from "./pages/admin/AdminClasses";
+import AdminClassContent from "./pages/admin/AdminClassContent";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminNotifications from "./pages/admin/AdminNotifications";
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/moderators" element={<AdminModerators />} />
             <Route path="/admin/classes" element={<AdminClasses />} />
+            <Route path="/admin/classes/:id/content" element={<AdminClassContent />} />
             <Route path="/admin/payments" element={<AdminPayments />} />
             <Route path="/admin/coupons" element={<AdminCoupons />} />
             <Route path="/admin/rank-papers" element={<AdminRankPapers />} />

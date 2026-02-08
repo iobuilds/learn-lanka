@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Search, 
   Plus, 
@@ -11,7 +12,8 @@ import {
   Eye,
   Loader2,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -487,6 +489,12 @@ const AdminClasses = () => {
                         <DropdownMenuItem onClick={() => openEditDialog(cls)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Edit Class
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link to={`/admin/classes/${cls.id}/content`}>
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Manage Content
+                          </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
