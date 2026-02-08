@@ -97,28 +97,28 @@ const Profile = () => {
       <div className="section-spacing max-w-2xl mx-auto">
         {/* Profile Header */}
         <Card className="card-elevated">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="w-8 h-8 text-primary" />
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <User className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
               </div>
-              <div className="flex-1">
-                <h1 className="text-xl font-bold text-foreground">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-foreground truncate">
                   {profile.first_name} {profile.last_name}
                 </h1>
-                <p className="text-muted-foreground">
-                  {profile.grade ? `Grade ${profile.grade} Student` : 'Student'}
+                <p className="text-sm text-muted-foreground">
+                  {profile.grade ? `Grade ${profile.grade}` : 'Student'}
                 </p>
                 <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="text-xs">
                     <Phone className="w-3 h-3 mr-1" />
                     {profile.phone}
                   </Badge>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
+              <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)} className="shrink-0">
+                <Edit className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Edit</span>
               </Button>
 
         <EditProfileDialog
@@ -132,25 +132,25 @@ const Profile = () => {
         </Card>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <BookOpen className="w-6 h-6 text-primary mx-auto mb-2" />
-              <p className="text-2xl font-bold">{enrollments.length}</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-1 sm:mb-2" />
+              <p className="text-xl sm:text-2xl font-bold">{enrollments.length}</p>
               <p className="text-xs text-muted-foreground">Classes</p>
             </CardContent>
           </Card>
           <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <Award className="w-6 h-6 text-accent mx-auto mb-2" />
-              <p className="text-2xl font-bold">—</p>
-              <p className="text-xs text-muted-foreground">Best Rank</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-accent mx-auto mb-1 sm:mb-2" />
+              <p className="text-xl sm:text-2xl font-bold">—</p>
+              <p className="text-xs text-muted-foreground">Rank</p>
             </CardContent>
           </Card>
           <Card className="card-elevated">
-            <CardContent className="p-4 text-center">
-              <CreditCard className="w-6 h-6 text-success mx-auto mb-2" />
-              <p className="text-2xl font-bold">{payments.length}</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-success mx-auto mb-1 sm:mb-2" />
+              <p className="text-xl sm:text-2xl font-bold">{payments.length}</p>
               <p className="text-xs text-muted-foreground">Paid</p>
             </CardContent>
           </Card>
