@@ -14,7 +14,8 @@ import {
   AlertCircle,
   Upload,
   Youtube,
-  Loader2
+  Loader2,
+  ClipboardList
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import StudentLayout from '@/components/layouts/StudentLayout';
+import ClassPapersList from '@/components/class/ClassPapersList';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -381,7 +383,7 @@ const ClassDetail = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="schedule" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="schedule" className="gap-2">
               <Calendar className="w-4 h-4 hidden sm:block" />
               Schedule
@@ -389,6 +391,10 @@ const ClassDetail = () => {
             <TabsTrigger value="lessons" className="gap-2">
               <BookOpen className="w-4 h-4 hidden sm:block" />
               Lessons
+            </TabsTrigger>
+            <TabsTrigger value="papers" className="gap-2">
+              <ClipboardList className="w-4 h-4 hidden sm:block" />
+              Papers
             </TabsTrigger>
             <TabsTrigger value="payments" className="gap-2">
               <CreditCard className="w-4 h-4 hidden sm:block" />
@@ -545,6 +551,12 @@ const ClassDetail = () => {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Papers Tab */}
+          <TabsContent value="papers" className="space-y-4">
+            <h2 className="text-lg font-semibold">Practice Papers</h2>
+            <ClassPapersList classId={id!} />
           </TabsContent>
 
           {/* Payments Tab */}

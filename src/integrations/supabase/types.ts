@@ -140,6 +140,53 @@ export type Database = {
           },
         ]
       }
+      class_papers: {
+        Row: {
+          class_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          paper_type: string
+          pdf_url: string
+          publish_status: string
+          published_at: string | null
+          title: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          paper_type: string
+          pdf_url: string
+          publish_status?: string
+          published_at?: string | null
+          title: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          paper_type?: string
+          pdf_url?: string
+          publish_status?: string
+          published_at?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_papers_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classes: {
         Row: {
           admin_otp_phone: string | null
