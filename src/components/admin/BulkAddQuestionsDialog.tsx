@@ -134,13 +134,15 @@ D) SQL`;
           throw new Error(`Question number would exceed ${maxQuestions}. Delete some questions first.`);
         }
 
-        // Create question
+        // Create question with upsert to handle potential conflicts
         const { data: question, error: qError } = await supabase
           .from('rank_mcq_questions')
-          .insert({
+          .upsert({
             rank_paper_id: paperId,
             q_no: currentQNo,
             question_text: q.question,
+          }, {
+            onConflict: 'rank_paper_id,q_no',
           })
           .select()
           .single();
