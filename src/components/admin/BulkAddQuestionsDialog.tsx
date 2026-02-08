@@ -22,7 +22,8 @@ import { toast } from 'sonner';
 
 interface Props {
   paperId: string;
-  startingQNo: number;
+  maxQuestions: number;
+  currentCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -33,9 +34,21 @@ interface ParsedQuestion {
   correctIndex: number;
 }
 
-const BulkAddQuestionsDialog = ({ paperId, startingQNo, open, onOpenChange }: Props) => {
+const BulkAddQuestionsDialog = ({ paperId, maxQuestions, currentCount, open, onOpenChange }: Props) => {
   const queryClient = useQueryClient();
   const [bulkText, setBulkText] = useState('');
+
+  // Helper to get current max q_no from database (avoids stale state race conditions)
+  const fetchMaxQNo = async (): Promise<number> => {
+    const { data, error } = await supabase
+      .from('rank_mcq_questions')
+      .select('q_no')
+      .eq('rank_paper_id', paperId)
+      .order('q_no', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    return data && data.length > 0 ? data[0].q_no : 0;
+  };
 
   const exampleFormat = `1. What is the capital of Sri Lanka?
 A) Kandy
@@ -107,9 +120,20 @@ D) SQL`;
         throw new Error('No valid questions found. Please check the format.');
       }
 
-      let currentQNo = startingQNo;
-      
+      // Check room for new questions
+      const remaining = maxQuestions - currentCount;
+      if (parsed.length > remaining) {
+        throw new Error(`Only ${remaining} more question${remaining !== 1 ? 's' : ''} allowed (max ${maxQuestions}).`);
+      }
+
+      // Get fresh max q_no from database
+      let currentQNo = (await fetchMaxQNo()) + 1;
+
       for (const q of parsed) {
+        if (currentQNo > maxQuestions) {
+          throw new Error(`Question number would exceed ${maxQuestions}. Delete some questions first.`);
+        }
+
         // Create question
         const { data: question, error: qError } = await supabase
           .from('rank_mcq_questions')
@@ -154,6 +178,8 @@ D) SQL`;
   });
 
   const previewCount = parseQuestions(bulkText).length;
+  const remaining = maxQuestions - currentCount;
+  const exceedsLimit = previewCount > remaining;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -204,11 +230,15 @@ D) SQL`;
           </div>
 
           {bulkText && (
-            <div className="p-3 bg-muted rounded-lg">
+            <div className={`p-3 rounded-lg ${exceedsLimit ? 'bg-destructive/10 border border-destructive/50' : 'bg-muted'}`}>
               <p className="text-sm">
                 <span className="font-medium">{previewCount}</span> question{previewCount !== 1 ? 's' : ''} detected
-                {previewCount > 0 && (
-                  <span className="text-muted-foreground"> (Q{startingQNo} - Q{startingQNo + previewCount - 1})</span>
+                {exceedsLimit ? (
+                  <span className="text-destructive ml-1">— exceeds limit! Only {remaining} more allowed.</span>
+                ) : (
+                  remaining < maxQuestions && (
+                    <span className="text-muted-foreground"> ({remaining} spots remaining)</span>
+                  )
                 )}
               </p>
             </div>
@@ -221,7 +251,7 @@ D) SQL`;
           </Button>
           <Button
             onClick={() => bulkAddMutation.mutate()}
-            disabled={bulkAddMutation.isPending || previewCount === 0}
+            disabled={bulkAddMutation.isPending || previewCount === 0 || exceedsLimit}
           >
             {bulkAddMutation.isPending ? (
               <>
