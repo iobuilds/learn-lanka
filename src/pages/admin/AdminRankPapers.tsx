@@ -270,18 +270,16 @@ const AdminRankPapers = () => {
             <h1 className="text-2xl font-bold text-foreground">Rank Papers</h1>
             <p className="text-muted-foreground">Manage timed exams and quizzes</p>
           </div>
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Paper
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) {
               resetForm();
             }
           }}>
-            <DialogTrigger asChild>
-              <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Paper
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingPaper ? 'Edit Rank Paper' : 'Create Rank Paper'}</DialogTitle>
