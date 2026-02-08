@@ -890,6 +890,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_mod: { Args: { _user_id: string }; Returns: boolean }
+      reorder_rank_mcq_questions: {
+        Args: { new_order: number[]; question_ids: string[] }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "student"
