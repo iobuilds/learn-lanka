@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -21,19 +22,15 @@ import { Separator } from '@/components/ui/separator';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { useCart } from '@/hooks/useCart';
 
 type ProductType = 'SOFT' | 'PRINTED' | 'BOTH';
 
-interface CartItem {
-  productId: string;
-  selectedType: ProductType;
-  quantity: number;
-}
-
 const Shop = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const { cart, addToCart, removeFromCart, updateQuantity, cartCount } = useCart();
 
   // Fetch products from database
   const { data: products = [], isLoading } = useQuery({
@@ -56,34 +53,6 @@ const Shop = () => {
     return matchesSearch && matchesType;
   });
 
-  const addToCart = (productId: string, selectedType: ProductType) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.productId === productId && item.selectedType === selectedType);
-      if (existing) {
-        return prev.map(item => 
-          item.productId === productId && item.selectedType === selectedType
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { productId, selectedType, quantity: 1 }];
-    });
-  };
-
-  const removeFromCart = (productId: string, selectedType: ProductType) => {
-    setCart(prev => prev.filter(item => !(item.productId === productId && item.selectedType === selectedType)));
-  };
-
-  const updateQuantity = (productId: string, selectedType: ProductType, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.productId === productId && item.selectedType === selectedType) {
-        const newQty = item.quantity + delta;
-        return newQty > 0 ? { ...item, quantity: newQty } : item;
-      }
-      return item;
-    }).filter(item => item.quantity > 0));
-  };
-
   const getPrice = (product: any, type: ProductType) => {
     switch (type) {
       case 'SOFT': return product.price_soft || 0;
@@ -97,8 +66,6 @@ const Shop = () => {
     if (!product) return sum;
     return sum + getPrice(product, item.selectedType) * item.quantity;
   }, 0);
-
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   if (isLoading) {
     return (
@@ -200,7 +167,11 @@ const Shop = () => {
                     <span className="text-xl font-bold">Rs. {cartTotal.toLocaleString()}</span>
                   </div>
                   
-                  <Button className="w-full" variant="hero">
+                  <Button 
+                    className="w-full" 
+                    variant="hero"
+                    onClick={() => navigate('/checkout', { state: { cart } })}
+                  >
                     Proceed to Checkout
                   </Button>
                 </div>
