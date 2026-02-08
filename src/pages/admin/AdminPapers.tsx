@@ -63,8 +63,9 @@ interface Paper {
   title: string;
   description: string | null;
   paper_type: string;
-  grade: number;
+  grade: number | null;
   year: number | null;
+  term: number | null;
   subject: string | null;
   pdf_url: string;
   is_free: boolean;
@@ -85,6 +86,7 @@ const AdminPapers = () => {
   const [paperType, setPaperType] = useState<string>('PAST_PAPER');
   const [grade, setGrade] = useState('');
   const [year, setYear] = useState('');
+  const [term, setTerm] = useState('');
   const [isFree, setIsFree] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
@@ -127,8 +129,9 @@ const AdminPapers = () => {
           title,
           description: description || null,
           paper_type: paperType,
-          grade: parseInt(grade),
+          grade: grade ? parseInt(grade) : null,
           year: year ? parseInt(year) : null,
+          term: term ? parseInt(term) : null,
           pdf_url: urlData.publicUrl,
           is_free: isFree,
         });
@@ -192,6 +195,7 @@ const AdminPapers = () => {
     setPaperType('PAST_PAPER');
     setGrade('');
     setYear('');
+    setTerm('');
     setIsFree(false);
     setPdfFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -262,35 +266,59 @@ const AdminPapers = () => {
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Paper Type</Label>
-                    <Select value={paperType} onValueChange={setPaperType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PAST_PAPER">Past Paper</SelectItem>
-                        <SelectItem value="SCHOOL_EXAM">School Exam</SelectItem>
-                        <SelectItem value="MODEL_PAPER">Model Paper</SelectItem>
-                        <SelectItem value="OTHER">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Grade</Label>
-                    <Select value={grade} onValueChange={setGrade}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[6, 7, 8, 9, 10, 11, 12, 13].map((g) => (
-                          <SelectItem key={g} value={g.toString()}>Grade {g}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Paper Type</Label>
+                  <Select value={paperType} onValueChange={(val) => {
+                    setPaperType(val);
+                    // Reset grade and term when changing type
+                    if (val === 'PAST_PAPER') {
+                      setGrade('');
+                      setTerm('');
+                    }
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PAST_PAPER">Past Paper</SelectItem>
+                      <SelectItem value="SCHOOL_EXAM">School Exam</SelectItem>
+                      <SelectItem value="MODEL_PAPER">Model Paper</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {/* Only show Grade and Term for School Exam */}
+                {paperType === 'SCHOOL_EXAM' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Grade *</Label>
+                      <Select value={grade} onValueChange={setGrade}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[6, 7, 8, 9, 10, 11, 12, 13].map((g) => (
+                            <SelectItem key={g} value={g.toString()}>Grade {g}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Term *</Label>
+                      <Select value={term} onValueChange={setTerm}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select term" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Term 1</SelectItem>
+                          <SelectItem value="2">Term 2</SelectItem>
+                          <SelectItem value="3">Term 3</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Year (optional)</Label>
                   <Select value={year} onValueChange={setYear}>
@@ -338,7 +366,7 @@ const AdminPapers = () => {
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                 <Button 
                   onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || isUploading || !title || !grade || !pdfFile}
+                  disabled={createMutation.isPending || isUploading || !title || !pdfFile || (paperType === 'SCHOOL_EXAM' && (!grade || !term))}
                 >
                   {isUploading ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
@@ -360,7 +388,7 @@ const AdminPapers = () => {
                   <TableHead>Paper</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Grade</TableHead>
-                  <TableHead>Year</TableHead>
+                  <TableHead>Term/Year</TableHead>
                   <TableHead>Downloads</TableHead>
                   <TableHead>Access</TableHead>
                   <TableHead className="w-10"></TableHead>
@@ -385,8 +413,10 @@ const AdminPapers = () => {
                     <TableCell>
                       <Badge variant="outline">{getPaperTypeLabel(paper.paper_type)}</Badge>
                     </TableCell>
-                    <TableCell>Grade {paper.grade}</TableCell>
-                    <TableCell>{paper.year || '-'}</TableCell>
+                    <TableCell>{paper.grade ? `Grade ${paper.grade}` : '-'}</TableCell>
+                    <TableCell>
+                      {paper.paper_type === 'SCHOOL_EXAM' && paper.term ? `Term ${paper.term}` : (paper.year || '-')}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Download className="w-3 h-3 text-muted-foreground" />
