@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +11,8 @@ interface BulkSmsRequest {
   recipients: string[]; // Array of phone numbers
   message: string;
   schedule_time?: string; // Optional: "YYYY-MM-DD HH:mm" format
+  class_id?: string; // Optional: for logging purposes
+  sent_by?: string; // User ID of sender
 }
 
 serve(async (req) => {
@@ -21,6 +24,8 @@ serve(async (req) => {
   try {
     const TEXTLK_API_TOKEN = Deno.env.get("TEXTLK_API_TOKEN");
     const TEXTLK_SENDER_ID = Deno.env.get("TEXTLK_SENDER_ID");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!TEXTLK_API_TOKEN) {
       throw new Error("TEXTLK_API_TOKEN is not configured");
@@ -29,7 +34,8 @@ serve(async (req) => {
       throw new Error("TEXTLK_SENDER_ID is not configured");
     }
 
-    const { recipients, message, schedule_time }: BulkSmsRequest = await req.json();
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { recipients, message, schedule_time, class_id, sent_by }: BulkSmsRequest = await req.json();
 
     if (!recipients || recipients.length === 0) {
       throw new Error("No recipients provided");
@@ -78,13 +84,32 @@ serve(async (req) => {
     });
 
     const responseData = await response.json();
+    const success = response.ok;
 
-    if (!response.ok) {
+    console.log("Bulk SMS response:", responseData);
+
+    // Log each SMS to the database
+    const logsToInsert = formattedRecipients.map(phone => ({
+      recipient_phone: phone,
+      message: message,
+      status: success ? 'sent' : 'failed',
+      api_response: responseData,
+      class_id: class_id || null,
+      sent_by: sent_by || null,
+      error_message: success ? null : (responseData.message || 'Unknown error'),
+    }));
+
+    // Insert logs (don't fail if logging fails)
+    try {
+      await supabase.from('sms_logs').insert(logsToInsert);
+    } catch (logError) {
+      console.error("Failed to log SMS:", logError);
+    }
+
+    if (!success) {
       console.error("Text.lk API error:", responseData);
       throw new Error(responseData.message || `SMS API error: ${response.status}`);
     }
-
-    console.log("Bulk SMS sent successfully:", responseData);
 
     return new Response(
       JSON.stringify({ 

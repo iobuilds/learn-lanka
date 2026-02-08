@@ -1004,6 +1004,56 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_logs: {
+        Row: {
+          api_response: Json | null
+          class_id: string | null
+          error_message: string | null
+          id: string
+          message: string
+          recipient_phone: string
+          recipient_user_id: string | null
+          sent_at: string
+          sent_by: string | null
+          status: string
+          template_key: string | null
+        }
+        Insert: {
+          api_response?: Json | null
+          class_id?: string | null
+          error_message?: string | null
+          id?: string
+          message: string
+          recipient_phone: string
+          recipient_user_id?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          template_key?: string | null
+        }
+        Update: {
+          api_response?: Json | null
+          class_id?: string | null
+          error_message?: string | null
+          id?: string
+          message?: string
+          recipient_phone?: string
+          recipient_user_id?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          template_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_logs_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_templates: {
         Row: {
           description: string | null
