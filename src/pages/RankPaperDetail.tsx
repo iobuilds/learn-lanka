@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Clock, 
@@ -73,7 +73,7 @@ const RankPaperDetail = () => {
   });
 
   // Check if user has paid for this specific rank paper
-  const { data: rankPaperPayment } = useQuery({
+  const { data: rankPaperPayment, refetch: refetchPayment } = useQuery({
     queryKey: ['rank-paper-payment', id, user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -90,6 +90,32 @@ const RankPaperDetail = () => {
     },
     enabled: !!id && !!user,
   });
+
+  // Subscribe to realtime payment updates for this user
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('payment-status')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'payments',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refetchPayment();
+          queryClient.invalidateQueries({ queryKey: ['class-monthly-access'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, refetchPayment, queryClient]);
 
   // Check if user has paid for current month's class fee (grants free access to class rank papers)
   const { data: hasClassMonthlyAccess } = useQuery({
