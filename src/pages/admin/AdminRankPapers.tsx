@@ -199,12 +199,40 @@ const AdminRankPapers = () => {
 
   // Update status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, paper }: { id: string; status: string; paper?: RankPaper }) => {
       const { error } = await supabase
         .from('rank_papers')
         .update({ publish_status: status })
         .eq('id', id);
       if (error) throw error;
+
+      // If publishing, create notification and send SMS
+      if (status === 'PUBLISHED' && paper) {
+        // Create in-app notification
+        await supabase.from('notifications').insert({
+          title: '📝 New Rank Paper Available!',
+          message: `${paper.title} is now available. Grade ${paper.grade}. Time: ${paper.time_limit_minutes} minutes.`,
+          target_type: paper.class_id ? 'CLASS' : 'ALL',
+          target_ref: paper.class_id || null,
+        });
+
+        // Send SMS notification
+        try {
+          await supabase.functions.invoke('send-sms-notification', {
+            body: {
+              type: 'rank_paper_published',
+              classId: paper.class_id || undefined,
+              data: {
+                title: paper.title,
+                grade: paper.grade,
+                timeLimit: paper.time_limit_minutes,
+              },
+            },
+          });
+        } catch (smsError) {
+          console.error('SMS notification failed:', smsError);
+        }
+      }
     },
     onSuccess: () => {
       toast.success('Status updated!');
@@ -600,7 +628,7 @@ const AdminRankPapers = () => {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {paper.publish_status === 'DRAFT' && (
-                            <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: paper.id, status: 'PUBLISHED' })}>
+                            <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: paper.id, status: 'PUBLISHED', paper })}>
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Publish
                             </DropdownMenuItem>
@@ -612,7 +640,7 @@ const AdminRankPapers = () => {
                             </DropdownMenuItem>
                           )}
                           {paper.publish_status === 'CLOSED' && (
-                            <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: paper.id, status: 'PUBLISHED' })}>
+                            <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: paper.id, status: 'PUBLISHED', paper })}>
                               <Unlock className="w-4 h-4 mr-2" />
                               Reopen Paper
                             </DropdownMenuItem>

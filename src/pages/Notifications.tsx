@@ -1,14 +1,16 @@
-import { Bell, Clock, BookOpen, CreditCard, FileText, Loader2 } from 'lucide-react';
+import { Bell, Clock, BookOpen, CreditCard, FileText, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const Notifications = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   // Fetch notifications
   const { data: notifications = [], isLoading } = useQuery({
@@ -20,6 +22,65 @@ const Notifications = () => {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch read notification IDs for current user
+  const { data: readNotificationIds = [] } = useQuery({
+    queryKey: ['notification-reads', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('user_notification_reads')
+        .select('notification_id')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      return data?.map(r => r.notification_id) || [];
+    },
+    enabled: !!user,
+  });
+
+  // Mark all as read mutation
+  const markAllAsReadMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error('Not authenticated');
+      
+      // Get unread notification IDs
+      const unreadIds = notifications
+        .filter(n => !readNotificationIds.includes(n.id))
+        .map(n => ({ user_id: user.id, notification_id: n.id }));
+      
+      if (unreadIds.length === 0) return;
+
+      const { error } = await supabase
+        .from('user_notification_reads')
+        .upsert(unreadIds, { onConflict: 'user_id,notification_id' });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification-reads', user?.id] });
+      toast.success('All notifications marked as read');
+    },
+    onError: () => {
+      toast.error('Failed to mark notifications as read');
+    },
+  });
+
+  // Mark single notification as read
+  const markAsReadMutation = useMutation({
+    mutationFn: async (notificationId: string) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      const { error } = await supabase
+        .from('user_notification_reads')
+        .upsert({ user_id: user.id, notification_id: notificationId }, { onConflict: 'user_id,notification_id' });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification-reads', user?.id] });
     },
   });
 
@@ -35,6 +96,8 @@ const Notifications = () => {
     }
     return Bell;
   };
+
+  const unreadCount = notifications.filter(n => !readNotificationIds.includes(n.id)).length;
 
   if (isLoading) {
     return (
@@ -54,25 +117,39 @@ const Notifications = () => {
             <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
             <p className="text-muted-foreground mt-1">
               Stay updated with class announcements
+              {unreadCount > 0 && (
+                <span className="ml-2 text-primary font-medium">({unreadCount} unread)</span>
+              )}
             </p>
           </div>
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => markAllAsReadMutation.mutate()}
+            disabled={markAllAsReadMutation.isPending || unreadCount === 0}
+          >
+            {markAllAsReadMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Check className="w-4 h-4 mr-2" />
+            )}
             Mark all as read
           </Button>
         </div>
 
         <div className="space-y-3">
-          {notifications.map((notification, index) => {
+          {notifications.map((notification) => {
             const Icon = getIcon(notification.title);
-            const isRead = index > 0; // Mock: first one is unread for now
+            const isRead = readNotificationIds.includes(notification.id);
 
             return (
               <Card 
                 key={notification.id} 
                 className={cn(
-                  "card-elevated transition-colors",
+                  "card-elevated transition-colors cursor-pointer",
                   !isRead && "border-primary/50 bg-primary/5"
                 )}
+                onClick={() => !isRead && markAsReadMutation.mutate(notification.id)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">

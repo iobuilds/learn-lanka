@@ -8,7 +8,9 @@ import {
   Calendar,
   ChevronRight,
   Clock,
-  Loader2
+  Loader2,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useRankPaperStatus } from '@/hooks/useRankPaperStatus';
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -74,6 +77,9 @@ const Dashboard = () => {
     },
   });
 
+  // Fetch rank paper attempt statuses
+  const { data: paperStatuses = [] } = useRankPaperStatus();
+
   // Get payment status for a class
   const getPaymentStatus = (classId: string): 'PAID' | 'PENDING' | 'UNPAID' => {
     // ref_id format for class payments: classId-yearMonth
@@ -85,7 +91,13 @@ const Dashboard = () => {
     return 'UNPAID';
   };
 
+  // Get attempt status for a rank paper
+  const getPaperStatus = (paperId: string) => {
+    return paperStatuses.find(s => s.paperId === paperId);
+  };
+
   const paidCount = enrollments.filter(e => getPaymentStatus(e.class_id) === 'PAID').length;
+  const completedPaperCount = paperStatuses.filter(s => s.status === 'SUBMITTED' || s.status === 'MARKED').length;
 
   if (enrollmentsLoading) {
     return (
@@ -155,8 +167,8 @@ const Dashboard = () => {
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-xl sm:text-2xl font-bold">{rankPapers.length}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Papers</p>
+                  <p className="text-xl sm:text-2xl font-bold">{completedPaperCount}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Done</p>
                 </div>
               </div>
             </CardContent>
@@ -306,39 +318,56 @@ const Dashboard = () => {
             </div>
 
             <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
-              {rankPapers.slice(0, 2).map((paper) => (
-                <Card key={paper.id} className="card-elevated">
-                  <CardContent className="p-3 sm:p-4">
-                    <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
-                      <div className="min-w-0">
-                        <h3 className="font-medium text-foreground text-sm sm:text-base truncate">{paper.title}</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Grade {paper.grade}</p>
+              {rankPapers.slice(0, 2).map((paper) => {
+                const status = getPaperStatus(paper.id);
+                const hasAttempted = !!status;
+                const isCompleted = status?.status === 'SUBMITTED' || status?.status === 'MARKED';
+                const isInProgress = status?.status === 'IN_PROGRESS';
+                
+                return (
+                  <Card key={paper.id} className="card-elevated">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-medium text-foreground text-sm sm:text-base truncate">{paper.title}</h3>
+                          <p className="text-xs sm:text-sm text-muted-foreground">Grade {paper.grade}</p>
+                        </div>
+                        {isCompleted ? (
+                          <Badge className="bg-success/10 text-success border-success/20 shrink-0">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            {status?.marksPublished ? `${status.score} marks` : 'Submitted'}
+                          </Badge>
+                        ) : isInProgress ? (
+                          <Badge className="bg-warning/10 text-warning border-warning/20 shrink-0">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            In Progress
+                          </Badge>
+                        ) : paper.fee_amount ? (
+                          <Badge variant="outline" className="text-xs shrink-0">Rs. {paper.fee_amount}</Badge>
+                        ) : null}
                       </div>
-                      {paper.fee_amount && (
-                        <Badge variant="outline" className="text-xs shrink-0">Rs. {paper.fee_amount}</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                        {paper.time_limit_minutes}min
-                      </span>
-                      <span className="truncate">
-                        {[
-                          paper.has_mcq && 'MCQ',
-                          paper.has_short_essay && 'Short',
-                          paper.has_essay && 'Essay'
-                        ].filter(Boolean).join(' • ')}
-                      </span>
-                    </div>
-                    <Link to={`/rank-papers/${paper.id}`}>
-                      <Button variant="outline" className="w-full" size="sm">
-                        Start Paper
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+                      <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+                          {paper.time_limit_minutes}min
+                        </span>
+                        <span className="truncate">
+                          {[
+                            paper.has_mcq && 'MCQ',
+                            paper.has_short_essay && 'Short',
+                            paper.has_essay && 'Essay'
+                          ].filter(Boolean).join(' • ')}
+                        </span>
+                      </div>
+                      <Link to={`/rank-papers/${paper.id}`}>
+                        <Button variant={isCompleted ? "secondary" : "outline"} className="w-full" size="sm">
+                          {isCompleted ? 'View Results' : isInProgress ? 'Continue' : 'Start Paper'}
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}

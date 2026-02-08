@@ -13,7 +13,9 @@ import {
   FileText,
   Upload as UploadIcon,
   X,
-  ClipboardList
+  ClipboardList,
+  Send,
+  Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -173,12 +175,42 @@ const AdminClassContent = () => {
   const saveDayMutation = useMutation({
     mutationFn: async () => {
       if (!classMonth) throw new Error('No class month');
+      const originalDate = editingDay?.date;
+      const isReschedule = editingDay && originalDate !== dayDate;
+      
       if (editingDay) {
         const { error } = await supabase
           .from('class_days')
           .update({ title: dayTitle, date: dayDate, is_extra: dayIsExtra })
           .eq('id', editingDay.id);
         if (error) throw error;
+        
+        // Send reschedule notification if date changed
+        if (isReschedule && classData) {
+          await supabase.from('notifications').insert({
+            title: '🔄 Class Rescheduled',
+            message: `${classData.title} on ${new Date(originalDate).toLocaleDateString()} has been rescheduled to ${new Date(dayDate).toLocaleDateString()}.`,
+            target_type: 'CLASS',
+            target_ref: id,
+          });
+          
+          // Send SMS notification
+          try {
+            await supabase.functions.invoke('send-sms-notification', {
+              body: {
+                type: 'schedule_rescheduled',
+                classId: id,
+                data: {
+                  className: classData.title,
+                  originalDate: new Date(originalDate).toLocaleDateString(),
+                  newDate: new Date(dayDate).toLocaleDateString(),
+                },
+              },
+            });
+          } catch (smsError) {
+            console.error('SMS notification failed:', smsError);
+          }
+        }
       } else {
         const { error } = await supabase
           .from('class_days')
@@ -214,6 +246,49 @@ const AdminClassContent = () => {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to delete day');
+    },
+  });
+
+  // Publish schedule mutation - notifies all enrolled students
+  const publishScheduleMutation = useMutation({
+    mutationFn: async () => {
+      if (!classData || !classMonth || classDays.length === 0) {
+        throw new Error('No schedule to publish');
+      }
+      
+      const monthName = new Date(selectedMonth + '-01').toLocaleDateString('en-US', { 
+        month: 'long', year: 'numeric' 
+      });
+      
+      // Create in-app notification
+      await supabase.from('notifications').insert({
+        title: '📅 Class Schedule Published',
+        message: `${classData.title} schedule for ${monthName} is now available. ${classDays.length} class days have been scheduled.`,
+        target_type: 'CLASS',
+        target_ref: id,
+      });
+      
+      // Send SMS notification
+      try {
+        await supabase.functions.invoke('send-sms-notification', {
+          body: {
+            type: 'schedule_published',
+            classId: id,
+            data: {
+              className: classData.title,
+              month: monthName,
+            },
+          },
+        });
+      } catch (smsError) {
+        console.error('SMS notification failed:', smsError);
+      }
+    },
+    onSuccess: () => {
+      toast.success('Schedule published and students notified!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to publish schedule');
     },
   });
 
@@ -442,12 +517,28 @@ const AdminClassContent = () => {
 
             {/* Schedule Tab */}
             <TabsContent value="schedule" className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h2 className="text-lg font-semibold">Class Days</h2>
-                <Button onClick={() => { resetDayForm(); setDayDialogOpen(true); }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Day
-                </Button>
+                <div className="flex items-center gap-2">
+                  {classDays.length > 0 && (
+                    <Button 
+                      variant="outline"
+                      onClick={() => publishScheduleMutation.mutate()}
+                      disabled={publishScheduleMutation.isPending}
+                    >
+                      {publishScheduleMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Bell className="w-4 h-4 mr-2" />
+                      )}
+                      Notify Students
+                    </Button>
+                  )}
+                  <Button onClick={() => { resetDayForm(); setDayDialogOpen(true); }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Day
+                  </Button>
+                </div>
               </div>
 
               {classDays.length === 0 ? (
