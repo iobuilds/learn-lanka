@@ -1,5 +1,5 @@
-import { forwardRef, useEffect, useMemo, useState } from 'react';
-import { FileText, Download, Lock } from 'lucide-react';
+import { forwardRef, useEffect, useState } from 'react';
+import { FileText, Download, Lock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,7 +8,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 
 interface Paper {
   id: string;
@@ -29,6 +28,7 @@ const Papers = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('PAST_PAPER');
   const [tabInitialized, setTabInitialized] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
 
   // Fetch papers
   const { data: papers = [], isLoading } = useQuery({
@@ -63,23 +63,70 @@ const Papers = () => {
     enabled: !!user,
   });
 
-  const handleViewPdf = async (paper: Paper) => {
+  const handleDownloadPdf = async (paper: Paper) => {
     if (!paper.is_free && !hasActiveSubscription) {
       toast.error('This paper requires an active subscription');
       return;
     }
 
-    // Increment download count
+    if (!user) {
+      toast.error('Please log in to download papers');
+      return;
+    }
+
+    setDownloadingPdf(paper.id);
+    
     try {
+      // Increment download count
       await supabase
         .from('papers')
         .update({ download_count: (paper.download_count ?? 0) + 1 })
         .eq('id', paper.id);
-    } catch (e) {
-      // Ignore increment errors
+      
+      // Get session for auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        setDownloadingPdf(null);
+        return;
+      }
+
+      // Call edge function for watermarked PDF
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/download-pdf-watermark`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ pdfUrl: paper.pdf_url }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to download PDF');
+      }
+
+      // Download the watermarked PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${paper.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('PDF downloaded successfully!');
+    } catch (error: any) {
+      console.error('Error downloading PDF:', error);
+      toast.error(error.message || 'Failed to download PDF');
+    } finally {
+      setDownloadingPdf(null);
     }
-    
-    window.open(paper.pdf_url, '_blank');
   };
 
   useEffect(() => {
@@ -164,8 +211,9 @@ const Papers = () => {
                     key={year} 
                     year={year} 
                     papers={papersByYear[year]} 
-                    onViewPdf={handleViewPdf}
+                    onDownload={handleDownloadPdf}
                     hasAccess={hasActiveSubscription}
+                    downloadingId={downloadingPdf}
                   />
                 ))}
               </div>
@@ -183,8 +231,9 @@ const Papers = () => {
                     key={grade} 
                     grade={grade} 
                     papers={schoolExamsByGrade[grade]} 
-                    onViewPdf={handleViewPdf}
+                    onDownload={handleDownloadPdf}
                     hasAccess={hasActiveSubscription}
+                    downloadingId={downloadingPdf}
                   />
                 ))}
               </div>
@@ -201,8 +250,9 @@ const Papers = () => {
                   <PaperCard 
                     key={paper.id} 
                     paper={paper} 
-                    onViewPdf={handleViewPdf}
+                    onDownload={handleDownloadPdf}
                     hasAccess={hasActiveSubscription}
+                    downloadingId={downloadingPdf}
                   />
                 ))}
               </div>
@@ -220,10 +270,11 @@ const YearCard = forwardRef<
   {
     year: string | number;
     papers: Paper[];
-    onViewPdf: (paper: Paper) => void;
+    onDownload: (paper: Paper) => void;
     hasAccess: boolean;
+    downloadingId: string | null;
   }
->(({ year, papers, onViewPdf, hasAccess }, ref) => (
+>(({ year, papers, onDownload, hasAccess, downloadingId }, ref) => (
   <div ref={ref}>
     <Card className="overflow-hidden">
       <div className="bg-foreground text-background px-4 py-3">
@@ -231,23 +282,28 @@ const YearCard = forwardRef<
       </div>
       <CardContent className="p-4">
         <div className="grid grid-cols-2 gap-4">
-          {papers.map((paper) => (
-            <div key={paper.id} className="space-y-2">
-              <p className="font-semibold text-sm text-foreground">{paper.title}</p>
-              <Button
-                className="w-full"
-                size="sm"
-                onClick={() => onViewPdf(paper)}
-                disabled={!paper.is_free && !hasAccess}
-              >
-                {!paper.is_free && !hasAccess ? (
-                  <><Lock className="w-4 h-4 mr-2" /> Locked</>
-                ) : (
-                  <><Download className="w-4 h-4 mr-2" /> View PDF</>
-                )}
-              </Button>
-            </div>
-          ))}
+          {papers.map((paper) => {
+            const isDownloading = downloadingId === paper.id;
+            return (
+              <div key={paper.id} className="space-y-2">
+                <p className="font-semibold text-sm text-foreground">{paper.title}</p>
+                <Button
+                  className="w-full"
+                  size="sm"
+                  onClick={() => onDownload(paper)}
+                  disabled={(!paper.is_free && !hasAccess) || isDownloading}
+                >
+                  {isDownloading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Downloading...</>
+                  ) : !paper.is_free && !hasAccess ? (
+                    <><Lock className="w-4 h-4 mr-2" /> Locked</>
+                  ) : (
+                    <><Download className="w-4 h-4 mr-2" /> Download</>
+                  )}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
@@ -261,10 +317,11 @@ const GradeCard = forwardRef<
   {
     grade: string;
     papers: Paper[];
-    onViewPdf: (paper: Paper) => void;
+    onDownload: (paper: Paper) => void;
     hasAccess: boolean;
+    downloadingId: string | null;
   }
->(({ grade, papers, onViewPdf, hasAccess }, ref) => {
+>(({ grade, papers, onDownload, hasAccess, downloadingId }, ref) => {
   // Group by term
   const byTerm = papers.reduce((acc, p) => {
     const term = p.term ? `Term ${p.term}` : 'Other';
@@ -297,34 +354,39 @@ const GradeCard = forwardRef<
             <div key={term}>
               <p className="font-medium text-sm text-muted-foreground mb-2">{term}</p>
               <div className="space-y-2">
-                {termPapers.map((paper) => (
-                  <div
-                    key={paper.id}
-                    className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{paper.title}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {paper.school_or_zone && <span>{paper.school_or_zone}</span>}
-                        {paper.medium && (
-                          <span className="text-primary">{getMediumLabel(paper.medium)}</span>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onViewPdf(paper)}
-                      disabled={!paper.is_free && !hasAccess}
+                {termPapers.map((paper) => {
+                  const isDownloading = downloadingId === paper.id;
+                  return (
+                    <div
+                      key={paper.id}
+                      className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
                     >
-                      {!paper.is_free && !hasAccess ? (
-                        <Lock className="w-3 h-3" />
-                      ) : (
-                        <Download className="w-3 h-3" />
-                      )}
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{paper.title}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {paper.school_or_zone && <span>{paper.school_or_zone}</span>}
+                          {paper.medium && (
+                            <span className="text-primary">{getMediumLabel(paper.medium)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onDownload(paper)}
+                        disabled={(!paper.is_free && !hasAccess) || isDownloading}
+                      >
+                        {isDownloading ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : !paper.is_free && !hasAccess ? (
+                          <Lock className="w-3 h-3" />
+                        ) : (
+                          <Download className="w-3 h-3" />
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -338,39 +400,46 @@ GradeCard.displayName = 'GradeCard';
 // Single Paper Card
 const PaperCard = ({ 
   paper, 
-  onViewPdf, 
-  hasAccess 
+  onDownload, 
+  hasAccess,
+  downloadingId
 }: { 
   paper: Paper; 
-  onViewPdf: (paper: Paper) => void;
+  onDownload: (paper: Paper) => void;
   hasAccess: boolean;
-}) => (
-  <Card className="p-4">
-    <div className="flex items-start gap-3">
-      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-        <FileText className="w-5 h-5 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-foreground truncate">{paper.title}</p>
-        {paper.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2">{paper.description}</p>
-        )}
-        <Button 
-          className="mt-2 w-full" 
-          size="sm"
-          onClick={() => onViewPdf(paper)}
-          disabled={!paper.is_free && !hasAccess}
-        >
-          {!paper.is_free && !hasAccess ? (
-            <><Lock className="w-4 h-4 mr-2" /> Subscription Required</>
-          ) : (
-            <><Download className="w-4 h-4 mr-2" /> View PDF</>
+  downloadingId: string | null;
+}) => {
+  const isDownloading = downloadingId === paper.id;
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <FileText className="w-5 h-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-foreground truncate">{paper.title}</p>
+          {paper.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{paper.description}</p>
           )}
-        </Button>
+          <Button 
+            className="mt-2 w-full" 
+            size="sm"
+            onClick={() => onDownload(paper)}
+            disabled={(!paper.is_free && !hasAccess) || isDownloading}
+          >
+            {isDownloading ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Downloading...</>
+            ) : !paper.is_free && !hasAccess ? (
+              <><Lock className="w-4 h-4 mr-2" /> Subscription Required</>
+            ) : (
+              <><Download className="w-4 h-4 mr-2" /> Download</>
+            )}
+          </Button>
+        </div>
       </div>
-    </div>
-  </Card>
-);
+    </Card>
+  );
+};
 
 // Empty State
 const EmptyState = ({ message }: { message: string }) => (
