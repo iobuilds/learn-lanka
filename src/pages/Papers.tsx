@@ -18,6 +18,8 @@ interface Paper {
   grade: number | null;
   year: number | null;
   term: number | null;
+  school_or_zone: string | null;
+  medium: string | null;
   pdf_url: string;
   is_free: boolean;
 }
@@ -246,13 +248,22 @@ const GradeCard = ({
   onViewPdf: (paper: Paper) => void;
   hasAccess: boolean;
 }) => {
-  // Group by term
+  // Group by term, then by school/zone
   const byTerm = papers.reduce((acc, p) => {
     const term = p.term ? `Term ${p.term}` : 'Other';
     if (!acc[term]) acc[term] = [];
     acc[term].push(p);
     return acc;
   }, {} as Record<string, Paper[]>);
+
+  const getMediumLabel = (medium: string | null) => {
+    switch (medium) {
+      case 'SINHALA': return 'සිංහල';
+      case 'ENGLISH': return 'English';
+      case 'TAMIL': return 'தமிழ்';
+      default: return '';
+    }
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -263,23 +274,29 @@ const GradeCard = ({
         {Object.entries(byTerm).map(([term, termPapers]) => (
           <div key={term}>
             <p className="font-medium text-sm text-muted-foreground mb-2">{term}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               {termPapers.map((paper) => (
-                <Button 
-                  key={paper.id}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => onViewPdf(paper)}
-                  disabled={!paper.is_free && !hasAccess}
-                >
-                  {!paper.is_free && !hasAccess ? (
-                    <Lock className="w-3 h-3 mr-1" />
-                  ) : (
-                    <FileText className="w-3 h-3 mr-1" />
-                  )}
-                  <span className="truncate text-xs">{paper.title}</span>
-                </Button>
+                <div key={paper.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{paper.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {paper.school_or_zone && <span>{paper.school_or_zone}</span>}
+                      {paper.medium && <span className="text-primary">{getMediumLabel(paper.medium)}</span>}
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onViewPdf(paper)}
+                    disabled={!paper.is_free && !hasAccess}
+                  >
+                    {!paper.is_free && !hasAccess ? (
+                      <Lock className="w-3 h-3" />
+                    ) : (
+                      <Download className="w-3 h-3" />
+                    )}
+                  </Button>
+                </div>
               ))}
             </div>
           </div>

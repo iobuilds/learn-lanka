@@ -65,6 +65,8 @@ interface Paper {
   grade: number | null;
   year: number | null;
   term: number | null;
+  school_or_zone: string | null;
+  medium: string | null;
   subject: string | null;
   pdf_url: string;
   is_free: boolean;
@@ -86,6 +88,8 @@ const AdminPapers = () => {
   const [grade, setGrade] = useState('');
   const [year, setYear] = useState('');
   const [term, setTerm] = useState('');
+  const [schoolOrZone, setSchoolOrZone] = useState('');
+  const [medium, setMedium] = useState('');
   const [isFree, setIsFree] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
@@ -137,6 +141,8 @@ const AdminPapers = () => {
             grade: grade ? parseInt(grade) : null,
             year: year ? parseInt(year) : null,
             term: term ? parseInt(term) : null,
+            school_or_zone: schoolOrZone || null,
+            medium: medium || null,
             pdf_url: pdfUrl,
             is_free: isFree,
           })
@@ -153,6 +159,8 @@ const AdminPapers = () => {
             grade: grade ? parseInt(grade) : null,
             year: year ? parseInt(year) : null,
             term: term ? parseInt(term) : null,
+            school_or_zone: schoolOrZone || null,
+            medium: medium || null,
             pdf_url: pdfUrl,
             is_free: isFree,
           });
@@ -217,6 +225,8 @@ const AdminPapers = () => {
     setGrade('');
     setYear('');
     setTerm('');
+    setSchoolOrZone('');
+    setMedium('');
     setIsFree(false);
     setPdfFile(null);
     setEditingPaper(null);
@@ -230,6 +240,8 @@ const AdminPapers = () => {
     setGrade(paper.grade?.toString() || '');
     setYear(paper.year?.toString() || '');
     setTerm(paper.term?.toString() || '');
+    setSchoolOrZone(paper.school_or_zone || '');
+    setMedium(paper.medium || '');
     setIsFree(paper.is_free);
     setPdfFile(null);
     setIsDialogOpen(true);
@@ -314,36 +326,61 @@ const AdminPapers = () => {
                   </Select>
                 </div>
 
-                {/* Only show Grade and Term for School Exam */}
+                {/* Only show Grade, Term, School/Zone, Medium for School Exam */}
                 {paperType === 'SCHOOL_EXAM' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Grade *</Label>
-                      <Select value={grade} onValueChange={setGrade}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select grade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[6, 7, 8, 9, 10, 11, 12, 13].map((g) => (
-                            <SelectItem key={g} value={g.toString()}>Grade {g}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Grade *</Label>
+                        <Select value={grade} onValueChange={setGrade}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select grade" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[6, 7, 8, 9, 10, 11, 12, 13].map((g) => (
+                              <SelectItem key={g} value={g.toString()}>Grade {g}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Term *</Label>
+                        <Select value={term} onValueChange={setTerm}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select term" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">Term 1</SelectItem>
+                            <SelectItem value="2">Term 2</SelectItem>
+                            <SelectItem value="3">Term 3</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Term *</Label>
-                      <Select value={term} onValueChange={setTerm}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select term" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Term 1</SelectItem>
-                          <SelectItem value="2">Term 2</SelectItem>
-                          <SelectItem value="3">Term 3</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>School / Zone</Label>
+                        <Input 
+                          placeholder="e.g., Royal College or Colombo Zone" 
+                          value={schoolOrZone}
+                          onChange={(e) => setSchoolOrZone(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Medium *</Label>
+                        <Select value={medium} onValueChange={setMedium}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select medium" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="SINHALA">Sinhala Medium</SelectItem>
+                            <SelectItem value="ENGLISH">English Medium</SelectItem>
+                            <SelectItem value="TAMIL">Tamil Medium</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
                 <div className="space-y-2">
                   <Label>Year (optional)</Label>
@@ -397,7 +434,7 @@ const AdminPapers = () => {
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                 <Button 
                   onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || isUploading || !title || (!pdfFile && !editingPaper) || (paperType === 'SCHOOL_EXAM' && (!grade || !term))}
+                  disabled={createMutation.isPending || isUploading || !title || (!pdfFile && !editingPaper) || (paperType === 'SCHOOL_EXAM' && (!grade || !term || !medium))}
                 >
                   {isUploading ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {editingPaper ? 'Updating...' : 'Uploading...'}</>
