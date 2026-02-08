@@ -90,6 +90,26 @@ const AdminPayments = () => {
 
   useEffect(() => {
     fetchPayments();
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('payments-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payments',
+        },
+        () => {
+          fetchPayments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredPayments = payments.filter((payment) => {
