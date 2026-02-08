@@ -382,8 +382,10 @@ export type Database = {
           grade: number | null
           id: string
           is_free: boolean
+          medium: string | null
           paper_type: string
           pdf_url: string
+          school_or_zone: string | null
           subject: string | null
           term: number | null
           title: string
@@ -397,8 +399,10 @@ export type Database = {
           grade?: number | null
           id?: string
           is_free?: boolean
+          medium?: string | null
           paper_type: string
           pdf_url: string
+          school_or_zone?: string | null
           subject?: string | null
           term?: number | null
           title: string
@@ -412,8 +416,10 @@ export type Database = {
           grade?: number | null
           id?: string
           is_free?: boolean
+          medium?: string | null
           paper_type?: string
           pdf_url?: string
+          school_or_zone?: string | null
           subject?: string | null
           term?: number | null
           title?: string
