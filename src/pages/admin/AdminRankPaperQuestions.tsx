@@ -44,7 +44,7 @@ interface MCQQuestion {
 }
 
 const AdminRankPaperQuestions = () => {
-  const { id: paperId } = useParams();
+  const { paperId } = useParams<{ paperId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [uploadingQuestionId, setUploadingQuestionId] = useState<string | null>(null);

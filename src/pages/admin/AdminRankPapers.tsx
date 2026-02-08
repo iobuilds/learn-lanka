@@ -555,10 +555,25 @@ const AdminRankPapers = () => {
                           )}
                           {paper.publish_status === 'PUBLISHED' && (
                             <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: paper.id, status: 'CLOSED' })}>
-                              <Clock className="w-4 h-4 mr-2" />
-                              Close
+                              <Lock className="w-4 h-4 mr-2" />
+                              Close Paper
                             </DropdownMenuItem>
                           )}
+                          {paper.publish_status === 'CLOSED' && (
+                            <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: paper.id, status: 'PUBLISHED' })}>
+                              <Unlock className="w-4 h-4 mr-2" />
+                              Reopen Paper
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => navigate(`/admin/rank-papers/${paper.id}/attempts`)}>
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Attempts & Marks
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/admin/rank-papers/${paper.id}/questions`)}>
+                            <ListOrdered className="w-4 h-4 mr-2" />
+                            Manage Questions/Content
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => {
                             setReviewDialog(paper);
                             setReviewVideoUrl(paper.review_video_url || '');
@@ -566,12 +581,6 @@ const AdminRankPapers = () => {
                             <PlayCircle className="w-4 h-4 mr-2" />
                             {paper.review_video_url ? 'Edit Review Video' : 'Add Review Video'}
                           </DropdownMenuItem>
-                          {paper.has_mcq && (
-                            <DropdownMenuItem onClick={() => navigate(`/admin/rank-papers/${paper.id}/questions`)}>
-                              <ListOrdered className="w-4 h-4 mr-2" />
-                              Manage Questions
-                            </DropdownMenuItem>
-                          )}
                           <DropdownMenuItem onClick={() => openEditDialog(paper)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit Paper

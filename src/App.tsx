@@ -33,6 +33,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoupons from "./pages/admin/AdminCoupons";
 import AdminRankPapers from "./pages/admin/AdminRankPapers";
 import AdminRankPaperQuestions from "./pages/admin/AdminRankPaperQuestions";
+import AdminRankPaperAttempts from "./pages/admin/AdminRankPaperAttempts";
 import AdminShop from "./pages/admin/AdminShop";
 import AdminPapers from "./pages/admin/AdminPapers";
 
@@ -74,7 +75,8 @@ const App = () => (
             <Route path="/admin/payments" element={<AdminPayments />} />
             <Route path="/admin/coupons" element={<AdminCoupons />} />
             <Route path="/admin/rank-papers" element={<AdminRankPapers />} />
-            <Route path="/admin/rank-papers/:id/questions" element={<AdminRankPaperQuestions />} />
+            <Route path="/admin/rank-papers/:paperId/questions" element={<AdminRankPaperQuestions />} />
+            <Route path="/admin/rank-papers/:paperId/attempts" element={<AdminRankPaperAttempts />} />
             <Route path="/admin/shop" element={<AdminShop />} />
             <Route path="/admin/papers" element={<AdminPapers />} />
             <Route path="/admin/notifications" element={<AdminNotifications />} />
