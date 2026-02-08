@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   ArrowLeft,
@@ -11,7 +11,8 @@ import {
   Loader2,
   Youtube,
   FileText,
-  Save
+  Upload as UploadIcon,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,7 @@ import { cn } from '@/lib/utils';
 const AdminClassContent = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   
   // Day dialog state
@@ -72,6 +74,7 @@ const AdminClassContent = () => {
   const [lessonNotes, setLessonNotes] = useState('');
   const [lessonPdfUrl, setLessonPdfUrl] = useState('');
   const [lessonYoutubeUrl, setLessonYoutubeUrl] = useState('');
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   
   // Delete state
   const [deleteDay, setDeleteDay] = useState<any>(null);
@@ -212,6 +215,35 @@ const AdminClassContent = () => {
     },
   });
 
+  // Upload PDF mutation
+  const uploadPdfMutation = useMutation({
+    mutationFn: async (file: File) => {
+      setUploadingPdf(true);
+      try {
+        const fileName = `${Date.now()}-${file.name}`;
+        const { data, error } = await supabase.storage
+          .from('lesson-materials')
+          .upload(fileName, file);
+        if (error) throw error;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('lesson-materials')
+          .getPublicUrl(fileName);
+        
+        return publicUrl;
+      } finally {
+        setUploadingPdf(false);
+      }
+    },
+    onSuccess: (url) => {
+      setLessonPdfUrl(url);
+      toast.success('PDF uploaded successfully!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to upload PDF');
+    },
+  });
+
   // Lesson mutations
   const saveLessonMutation = useMutation({
     mutationFn: async () => {
@@ -307,6 +339,21 @@ const AdminClassContent = () => {
     setLessonPdfUrl(lesson.pdf_url || '');
     setLessonYoutubeUrl(lesson.youtube_url || '');
     setLessonDialogOpen(true);
+  };
+
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please select a PDF file');
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error('File size must be less than 20MB');
+        return;
+      }
+      uploadPdfMutation.mutate(file);
+    }
   };
 
   const getLessonsForDay = (dayId: string) => lessons.filter(l => l.class_day_id === dayId);
@@ -632,15 +679,52 @@ const AdminClassContent = () => {
                 onChange={(e) => setLessonNotes(e.target.value)}
               />
             </div>
+
+            {/* PDF Upload */}
             <div className="space-y-2">
-              <Label htmlFor="lessonPdfUrl">PDF URL (optional)</Label>
-              <Input 
-                id="lessonPdfUrl" 
-                placeholder="https://..."
-                value={lessonPdfUrl}
-                onChange={(e) => setLessonPdfUrl(e.target.value)}
-              />
+              <Label>PDF File (optional)</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handlePdfFileChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPdf}
+                >
+                  <UploadIcon className="w-4 h-4 mr-2" />
+                  {uploadingPdf ? 'Uploading...' : 'Choose PDF'}
+                </Button>
+                {lessonPdfUrl && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="gap-1">
+                      <FileText className="w-3 h-3" />
+                      PDF Uploaded
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setLessonPdfUrl('')}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {lessonPdfUrl ? 'PDF uploaded to server' : 'Max 20MB PDF files'}
+              </p>
             </div>
+
+            {/* YouTube URL */}
             <div className="space-y-2">
               <Label htmlFor="lessonYoutubeUrl">YouTube URL (optional)</Label>
               <Input 
