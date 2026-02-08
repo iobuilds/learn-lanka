@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   DndContext, 
@@ -15,9 +15,11 @@ import {
   sortableKeyboardCoordinates, 
   verticalListSortingStrategy 
 } from '@dnd-kit/sortable';
-import { ArrowLeft, Plus, Loader2, FileText, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, ChevronsUpDown, Upload, Eye, Trash2, FileUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import BulkAddQuestionsDialog from '@/components/admin/BulkAddQuestionsDialog';
 import SortableQuestionCard from '@/components/admin/SortableQuestionCard';
@@ -50,6 +52,10 @@ const AdminRankPaperQuestions = () => {
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [allExpanded, setAllExpanded] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [uploadingEssayPdf, setUploadingEssayPdf] = useState(false);
+  const [uploadingShortEssayPdf, setUploadingShortEssayPdf] = useState(false);
+  const essayFileRef = useRef<HTMLInputElement>(null);
+  const shortEssayFileRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -417,6 +423,74 @@ const AdminRankPaperQuestions = () => {
     }
   };
 
+  // Handle essay PDF upload
+  const handleEssayPdfUpload = async (file: File, type: 'essay' | 'short_essay') => {
+    if (file.type !== 'application/pdf') {
+      toast.error('Please select a PDF file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('PDF must be less than 10MB');
+      return;
+    }
+
+    if (type === 'essay') {
+      setUploadingEssayPdf(true);
+    } else {
+      setUploadingShortEssayPdf(true);
+    }
+
+    try {
+      const fileName = `${paperId}/${type}-questions-${Date.now()}.pdf`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('papers')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('papers')
+        .getPublicUrl(fileName);
+
+      // Update the rank_paper with the PDF URL
+      const updateField = type === 'essay' ? 'essay_pdf_url' : 'short_essay_pdf_url';
+      const { error: updateError } = await supabase
+        .from('rank_papers')
+        .update({ [updateField]: publicUrl })
+        .eq('id', paperId);
+
+      if (updateError) throw updateError;
+
+      queryClient.invalidateQueries({ queryKey: ['rank-paper', paperId] });
+      toast.success(`${type === 'essay' ? 'Essay' : 'Short Essay'} questions PDF uploaded!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Upload failed');
+    } finally {
+      setUploadingEssayPdf(false);
+      setUploadingShortEssayPdf(false);
+    }
+  };
+
+  // Remove essay PDF
+  const handleRemoveEssayPdf = async (type: 'essay' | 'short_essay') => {
+    try {
+      const updateField = type === 'essay' ? 'essay_pdf_url' : 'short_essay_pdf_url';
+      const { error } = await supabase
+        .from('rank_papers')
+        .update({ [updateField]: null })
+        .eq('id', paperId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ['rank-paper', paperId] });
+      toast.success('PDF removed');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to remove PDF');
+    }
+  };
+
   // Handle drag end
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -440,6 +514,12 @@ const AdminRankPaperQuestions = () => {
     );
   }
 
+  // Determine which sections are available
+  const hasMcq = paper?.has_mcq;
+  const hasShortEssay = paper?.has_short_essay;
+  const hasEssay = paper?.has_essay;
+  const defaultTab = hasMcq ? 'mcq' : hasShortEssay ? 'short_essay' : 'essay';
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -450,109 +530,294 @@ const AdminRankPaperQuestions = () => {
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-foreground">Manage Questions</h1>
-            <p className="text-muted-foreground">
-              {paper?.title} — {questions.length}/{MAX_QUESTIONS} questions (drag to reorder)
-            </p>
+            <p className="text-muted-foreground">{paper?.title}</p>
           </div>
           <div className="flex gap-2">
-            {questions.length > 0 && (
-              <Button variant="outline" size="sm" onClick={toggleAllExpanded}>
-                <ChevronsUpDown className="w-4 h-4 mr-2" />
-                {allExpanded ? 'Collapse All' : 'Expand All'}
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setBulkAddOpen(true)} disabled={!canAddMore}>
-              <FileText className="w-4 h-4 mr-2" />
-              Bulk Add
-            </Button>
-            <Button onClick={() => addQuestionMutation.mutate()} disabled={addQuestionMutation.isPending || !canAddMore}>
-              {addQuestionMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4 mr-2" />
-              )}
-              Add One
-            </Button>
+            {hasMcq && <Badge variant="outline">MCQ</Badge>}
+            {hasShortEssay && <Badge variant="outline">Short Essay</Badge>}
+            {hasEssay && <Badge variant="outline">Essay</Badge>}
           </div>
         </div>
 
-        {/* Questions */}
-        {questions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">No questions yet. Add your first question to get started.</p>
-              <Button onClick={() => addQuestionMutation.mutate()}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add First Question
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={questions.map(q => q.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="grid gap-4">
-                {questions.map((question) => (
-                  <SortableQuestionCard
-                    key={question.id}
-                    question={question}
-                    isExpanded={expandedIds.has(question.id)}
-                    onExpandChange={(isExpanded) => handleExpandChange(question.id, isExpanded)}
-                    uploadingQuestionId={uploadingQuestionId}
-                    uploadingOptionId={uploadingOptionId}
-                    onUpdateQuestionText={(id, text) => 
-                      updateQuestionTextMutation.mutate({ id, question_text: text })
-                    }
-                    onUpdateQuestionImage={(id, url) => 
-                      updateQuestionImageMutation.mutate({ id, url })
-                    }
-                    onUpdateOptionText={(id, text) => 
-                      updateOptionTextMutation.mutate({ id, option_text: text })
-                    }
-                    onUpdateOptionImage={(id, url) => 
-                      updateOptionImageMutation.mutate({ id, url })
-                    }
-                    onSetCorrectAnswer={(questionId, optionId) => 
-                      setCorrectAnswerMutation.mutate({ questionId, optionId })
-                    }
-                    onDeleteQuestion={(id) => deleteQuestionMutation.mutate(id)}
-                    onDuplicateQuestion={(q) => duplicateQuestionMutation.mutate(q)}
-                    onImageUpload={handleImageUpload}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
+        {/* Tabs for different sections */}
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            {hasMcq && <TabsTrigger value="mcq">MCQ Questions</TabsTrigger>}
+            {hasShortEssay && <TabsTrigger value="short_essay">Short Essay</TabsTrigger>}
+            {hasEssay && <TabsTrigger value="essay">Essay</TabsTrigger>}
+          </TabsList>
 
-        {/* Add More Button at Bottom */}
-        {questions.length > 0 && canAddMore && (
-          <div className="flex justify-center pt-4">
-            <Button 
-              size="lg" 
-              onClick={() => addQuestionMutation.mutate()}
-              disabled={addQuestionMutation.isPending || !canAddMore}
-            >
-              {addQuestionMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          {/* MCQ Tab */}
+          {hasMcq && (
+            <TabsContent value="mcq" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {questions.length}/{MAX_QUESTIONS} questions (drag to reorder)
+                </p>
+                <div className="flex gap-2">
+                  {questions.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={toggleAllExpanded}>
+                      <ChevronsUpDown className="w-4 h-4 mr-2" />
+                      {allExpanded ? 'Collapse All' : 'Expand All'}
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setBulkAddOpen(true)} disabled={!canAddMore}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Bulk Add
+                  </Button>
+                  <Button onClick={() => addQuestionMutation.mutate()} disabled={addQuestionMutation.isPending || !canAddMore}>
+                    {addQuestionMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-2" />
+                    )}
+                    Add One
+                  </Button>
+                </div>
+              </div>
+
+              {questions.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-muted-foreground mb-4">No MCQ questions yet. Add your first question to get started.</p>
+                    <Button onClick={() => addQuestionMutation.mutate()}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add First Question
+                    </Button>
+                  </CardContent>
+                </Card>
               ) : (
-                <Plus className="w-4 h-4 mr-2" />
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={questions.map(q => q.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="grid gap-4">
+                      {questions.map((question) => (
+                        <SortableQuestionCard
+                          key={question.id}
+                          question={question}
+                          isExpanded={expandedIds.has(question.id)}
+                          onExpandChange={(isExpanded) => handleExpandChange(question.id, isExpanded)}
+                          uploadingQuestionId={uploadingQuestionId}
+                          uploadingOptionId={uploadingOptionId}
+                          onUpdateQuestionText={(id, text) => 
+                            updateQuestionTextMutation.mutate({ id, question_text: text })
+                          }
+                          onUpdateQuestionImage={(id, url) => 
+                            updateQuestionImageMutation.mutate({ id, url })
+                          }
+                          onUpdateOptionText={(id, text) => 
+                            updateOptionTextMutation.mutate({ id, option_text: text })
+                          }
+                          onUpdateOptionImage={(id, url) => 
+                            updateOptionImageMutation.mutate({ id, url })
+                          }
+                          onSetCorrectAnswer={(questionId, optionId) => 
+                            setCorrectAnswerMutation.mutate({ questionId, optionId })
+                          }
+                          onDeleteQuestion={(id) => deleteQuestionMutation.mutate(id)}
+                          onDuplicateQuestion={(q) => duplicateQuestionMutation.mutate(q)}
+                          onImageUpload={handleImageUpload}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
-              Add Another Question
-            </Button>
-          </div>
-        )}
-        {!canAddMore && questions.length > 0 && (
-          <div className="text-center pt-4 text-muted-foreground">
-            Maximum {MAX_QUESTIONS} questions reached.
-          </div>
-        )}
+
+              {questions.length > 0 && canAddMore && (
+                <div className="flex justify-center pt-4">
+                  <Button 
+                    size="lg" 
+                    onClick={() => addQuestionMutation.mutate()}
+                    disabled={addQuestionMutation.isPending || !canAddMore}
+                  >
+                    {addQuestionMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-2" />
+                    )}
+                    Add Another Question
+                  </Button>
+                </div>
+              )}
+              {!canAddMore && questions.length > 0 && (
+                <div className="text-center pt-4 text-muted-foreground">
+                  Maximum {MAX_QUESTIONS} questions reached.
+                </div>
+              )}
+            </TabsContent>
+          )}
+
+          {/* Short Essay Tab */}
+          {hasShortEssay && (
+            <TabsContent value="short_essay" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileUp className="w-5 h-5" />
+                    Short Essay Questions PDF
+                  </CardTitle>
+                  <CardDescription>
+                    Upload a PDF containing short essay questions. Students will download this and upload their answers.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <input
+                    ref={shortEssayFileRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleEssayPdfUpload(file, 'short_essay');
+                    }}
+                  />
+                  
+                  {paper?.short_essay_pdf_url ? (
+                    <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                      <FileText className="w-10 h-10 text-primary" />
+                      <div className="flex-1">
+                        <p className="font-medium">Short Essay Questions PDF</p>
+                        <p className="text-sm text-muted-foreground">PDF uploaded successfully</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(paper.short_essay_pdf_url!, '_blank')}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => shortEssayFileRef.current?.click()}
+                          disabled={uploadingShortEssayPdf}
+                        >
+                          {uploadingShortEssayPdf ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          Replace
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRemoveEssayPdf('short_essay')}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => shortEssayFileRef.current?.click()}
+                    >
+                      {uploadingShortEssayPdf ? (
+                        <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-primary" />
+                      ) : (
+                        <FileUp className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
+                      )}
+                      <p className="font-medium mb-1">Click to upload Short Essay Questions PDF</p>
+                      <p className="text-sm text-muted-foreground">PDF up to 10MB</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* Essay Tab */}
+          {hasEssay && (
+            <TabsContent value="essay" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileUp className="w-5 h-5" />
+                    Essay Questions PDF
+                  </CardTitle>
+                  <CardDescription>
+                    Upload a PDF containing essay questions. Students will download this and upload their answers.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <input
+                    ref={essayFileRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleEssayPdfUpload(file, 'essay');
+                    }}
+                  />
+                  
+                  {paper?.essay_pdf_url ? (
+                    <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                      <FileText className="w-10 h-10 text-primary" />
+                      <div className="flex-1">
+                        <p className="font-medium">Essay Questions PDF</p>
+                        <p className="text-sm text-muted-foreground">PDF uploaded successfully</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(paper.essay_pdf_url!, '_blank')}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => essayFileRef.current?.click()}
+                          disabled={uploadingEssayPdf}
+                        >
+                          {uploadingEssayPdf ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          Replace
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRemoveEssayPdf('essay')}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => essayFileRef.current?.click()}
+                    >
+                      {uploadingEssayPdf ? (
+                        <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-primary" />
+                      ) : (
+                        <FileUp className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
+                      )}
+                      <p className="font-medium mb-1">Click to upload Essay Questions PDF</p>
+                      <p className="text-sm text-muted-foreground">PDF up to 10MB</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
 
       {/* Bulk Add Dialog */}
