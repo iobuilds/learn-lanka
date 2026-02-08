@@ -102,8 +102,21 @@ const AdminRankPaperQuestions = () => {
     enabled: !!paperId,
   });
 
-  // Compute next q_no safely (handles gaps after deletes)
-  const nextQNo = (questions.reduce((max, q) => Math.max(max, q.q_no), 0) || 0) + 1;
+  // Max 50 questions enforced by DB constraint
+  const MAX_QUESTIONS = 50;
+  const canAddMore = questions.length < MAX_QUESTIONS;
+
+  // Helper to get current max q_no from database (avoids stale state race conditions)
+  const fetchMaxQNo = async (): Promise<number> => {
+    const { data, error } = await supabase
+      .from('rank_mcq_questions')
+      .select('q_no')
+      .eq('rank_paper_id', paperId)
+      .order('q_no', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    return data && data.length > 0 ? data[0].q_no : 0;
+  };
 
   // Initialize expanded state when questions load
   useEffect(() => {
@@ -156,11 +169,23 @@ const AdminRankPaperQuestions = () => {
     setAllExpanded(newSet.size === questions.length);
   };
 
-  // Add question mutation
+  // Add question mutation (fetches max q_no from DB to avoid stale-state duplicate keys)
   const addQuestionMutation = useMutation({
     mutationFn: async () => {
-      const newQNo = nextQNo;
-      
+      // Guard: enforce 50 question cap
+      const currentCount = questions.length;
+      if (currentCount >= MAX_QUESTIONS) {
+        throw new Error(`Maximum ${MAX_QUESTIONS} questions allowed per paper.`);
+      }
+
+      // Get fresh max q_no from database
+      const maxQNo = await fetchMaxQNo();
+      const newQNo = maxQNo + 1;
+
+      if (newQNo > MAX_QUESTIONS) {
+        throw new Error(`Question number would exceed ${MAX_QUESTIONS}. Delete some questions first.`);
+      }
+
       const { data: question, error: qError } = await supabase
         .from('rank_mcq_questions')
         .insert({
@@ -197,11 +222,23 @@ const AdminRankPaperQuestions = () => {
     },
   });
 
-  // Duplicate question mutation
+  // Duplicate question mutation (fetches max q_no from DB to avoid stale-state duplicate keys)
   const duplicateQuestionMutation = useMutation({
     mutationFn: async (sourceQuestion: MCQQuestion) => {
-      const newQNo = nextQNo;
-      
+      // Guard: enforce 50 question cap
+      const currentCount = questions.length;
+      if (currentCount >= MAX_QUESTIONS) {
+        throw new Error(`Maximum ${MAX_QUESTIONS} questions allowed per paper.`);
+      }
+
+      // Get fresh max q_no from database
+      const maxQNo = await fetchMaxQNo();
+      const newQNo = maxQNo + 1;
+
+      if (newQNo > MAX_QUESTIONS) {
+        throw new Error(`Question number would exceed ${MAX_QUESTIONS}. Delete some questions first.`);
+      }
+
       const { data: question, error: qError } = await supabase
         .from('rank_mcq_questions')
         .insert({
@@ -236,7 +273,7 @@ const AdminRankPaperQuestions = () => {
       queryClient.invalidateQueries({ queryKey: ['rank-mcq-questions', paperId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to add question');
+      toast.error(error.message || 'Failed to duplicate question');
     },
   });
 
@@ -413,7 +450,9 @@ const AdminRankPaperQuestions = () => {
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-foreground">Manage Questions</h1>
-            <p className="text-muted-foreground">{paper?.title} - {questions.length} questions (drag to reorder)</p>
+            <p className="text-muted-foreground">
+              {paper?.title} — {questions.length}/{MAX_QUESTIONS} questions (drag to reorder)
+            </p>
           </div>
           <div className="flex gap-2">
             {questions.length > 0 && (
@@ -422,11 +461,11 @@ const AdminRankPaperQuestions = () => {
                 {allExpanded ? 'Collapse All' : 'Expand All'}
               </Button>
             )}
-            <Button variant="outline" onClick={() => setBulkAddOpen(true)}>
+            <Button variant="outline" onClick={() => setBulkAddOpen(true)} disabled={!canAddMore}>
               <FileText className="w-4 h-4 mr-2" />
               Bulk Add
             </Button>
-            <Button onClick={() => addQuestionMutation.mutate()} disabled={addQuestionMutation.isPending}>
+            <Button onClick={() => addQuestionMutation.mutate()} disabled={addQuestionMutation.isPending || !canAddMore}>
               {addQuestionMutation.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
@@ -493,12 +532,12 @@ const AdminRankPaperQuestions = () => {
         )}
 
         {/* Add More Button at Bottom */}
-        {questions.length > 0 && (
+        {questions.length > 0 && canAddMore && (
           <div className="flex justify-center pt-4">
             <Button 
               size="lg" 
               onClick={() => addQuestionMutation.mutate()}
-              disabled={addQuestionMutation.isPending}
+              disabled={addQuestionMutation.isPending || !canAddMore}
             >
               {addQuestionMutation.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -509,12 +548,18 @@ const AdminRankPaperQuestions = () => {
             </Button>
           </div>
         )}
+        {!canAddMore && questions.length > 0 && (
+          <div className="text-center pt-4 text-muted-foreground">
+            Maximum {MAX_QUESTIONS} questions reached.
+          </div>
+        )}
       </div>
 
       {/* Bulk Add Dialog */}
       <BulkAddQuestionsDialog
         paperId={paperId || ''}
-        startingQNo={nextQNo}
+        maxQuestions={MAX_QUESTIONS}
+        currentCount={questions.length}
         open={bulkAddOpen}
         onOpenChange={setBulkAddOpen}
       />
