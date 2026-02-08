@@ -373,6 +373,51 @@ export type Database = {
         }
         Relationships: []
       }
+      papers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          download_count: number
+          grade: number
+          id: string
+          is_free: boolean
+          paper_type: string
+          pdf_url: string
+          subject: string | null
+          title: string
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          download_count?: number
+          grade: number
+          id?: string
+          is_free?: boolean
+          paper_type: string
+          pdf_url: string
+          subject?: string | null
+          title: string
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          download_count?: number
+          grade?: number
+          id?: string
+          is_free?: boolean
+          paper_type?: string
+          pdf_url?: string
+          subject?: string | null
+          title?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
