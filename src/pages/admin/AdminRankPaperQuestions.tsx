@@ -1,26 +1,26 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, 
-  Plus, 
-  Trash2, 
-  Loader2, 
-  Image as ImageIcon, 
-  Check, 
-  Type,
-  Upload,
-  X,
-  FileText
-} from 'lucide-react';
+  DndContext, 
+  closestCenter, 
+  KeyboardSensor, 
+  PointerSensor, 
+  useSensor, 
+  useSensors,
+  DragEndEvent 
+} from '@dnd-kit/core';
+import { 
+  arrayMove, 
+  SortableContext, 
+  sortableKeyboardCoordinates, 
+  verticalListSortingStrategy 
+} from '@dnd-kit/sortable';
+import { ArrowLeft, Plus, Loader2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import BulkAddQuestionsDialog from '@/components/admin/BulkAddQuestionsDialog';
+import SortableQuestionCard from '@/components/admin/SortableQuestionCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -48,6 +48,13 @@ const AdminRankPaperQuestions = () => {
   const [uploadingQuestionId, setUploadingQuestionId] = useState<string | null>(null);
   const [uploadingOptionId, setUploadingOptionId] = useState<string | null>(null);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Fetch paper details
   const { data: paper } = useQuery({
@@ -91,6 +98,26 @@ const AdminRankPaperQuestions = () => {
       return questionsWithOptions as MCQQuestion[];
     },
     enabled: !!paperId,
+  });
+
+  // Reorder questions mutation
+  const reorderMutation = useMutation({
+    mutationFn: async (reorderedQuestions: MCQQuestion[]) => {
+      const updates = reorderedQuestions.map((q, index) => 
+        supabase
+          .from('rank_mcq_questions')
+          .update({ q_no: index + 1 })
+          .eq('id', q.id)
+      );
+      await Promise.all(updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rank-mcq-questions', paperId] });
+      toast.success('Questions reordered!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to reorder questions');
+    },
   });
 
   // Add question mutation
@@ -274,6 +301,19 @@ const AdminRankPaperQuestions = () => {
     }
   };
 
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = questions.findIndex((q) => q.id === active.id);
+      const newIndex = questions.findIndex((q) => q.id === over.id);
+      
+      const reorderedQuestions = arrayMove(questions, oldIndex, newIndex);
+      reorderMutation.mutate(reorderedQuestions);
+    }
+  };
+
   if (isLoading) {
     return (
       <AdminLayout>
@@ -294,7 +334,7 @@ const AdminRankPaperQuestions = () => {
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-foreground">Manage Questions</h1>
-            <p className="text-muted-foreground">{paper?.title} - {questions.length} questions</p>
+            <p className="text-muted-foreground">{paper?.title} - {questions.length} questions (drag to reorder)</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setBulkAddOpen(true)}>
@@ -324,194 +364,44 @@ const AdminRankPaperQuestions = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6">
-            {questions.map((question) => (
-              <Card key={question.id} className="overflow-hidden">
-                <CardHeader className="bg-muted/50 pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Badge>Q{question.q_no}</Badge>
-                      Question {question.q_no}
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => deleteQuestionMutation.mutate(question.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4 space-y-4">
-                  {/* Question Content */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">Question (Text or Image)</Label>
-                    
-                    <Tabs defaultValue={question.question_image_url ? 'image' : 'text'} className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 max-w-xs">
-                        <TabsTrigger value="text" className="flex items-center gap-2">
-                          <Type className="w-4 h-4" />
-                          Text
-                        </TabsTrigger>
-                        <TabsTrigger value="image" className="flex items-center gap-2">
-                          <ImageIcon className="w-4 h-4" />
-                          Image
-                        </TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="text" className="mt-3">
-                        <Textarea
-                          placeholder="Enter the question text..."
-                          defaultValue={question.question_text || ''}
-                          onBlur={(e) => {
-                            if (e.target.value !== question.question_text) {
-                              updateQuestionTextMutation.mutate({
-                                id: question.id,
-                                question_text: e.target.value,
-                              });
-                            }
-                          }}
-                          rows={3}
-                        />
-                      </TabsContent>
-                      <TabsContent value="image" className="mt-3">
-                        {question.question_image_url ? (
-                          <div className="relative inline-block">
-                            <img 
-                              src={question.question_image_url} 
-                              alt="Question" 
-                              className="max-h-48 rounded-lg border"
-                            />
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="absolute -top-2 -right-2 h-6 w-6"
-                              onClick={() => updateQuestionImageMutation.mutate({ id: question.id, url: null })}
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                            {uploadingQuestionId === question.id ? (
-                              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                            ) : (
-                              <>
-                                <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                                <span className="text-sm text-muted-foreground">Click to upload question image</span>
-                              </>
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleImageUpload(file, 'question', question.id);
-                              }}
-                            />
-                          </label>
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  </div>
-
-                  {/* Options */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-medium">Options (click circle to mark correct answer)</Label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {question.options.map((option) => (
-                        <div
-                          key={option.id}
-                          className={`p-3 rounded-lg border-2 transition-colors ${
-                            option.is_correct 
-                              ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
-                              : 'border-border'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <button
-                              type="button"
-                              onClick={() => option.id && setCorrectAnswerMutation.mutate({
-                                questionId: question.id,
-                                optionId: option.id,
-                              })}
-                              className={`mt-1 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                option.is_correct 
-                                  ? 'border-green-500 bg-green-500 text-white' 
-                                  : 'border-muted-foreground hover:border-primary'
-                              }`}
-                            >
-                              {option.is_correct && <Check className="w-4 h-4" />}
-                            </button>
-                            <div className="flex-1 space-y-2">
-                              <Badge variant="secondary" className="mb-2">
-                                Option {String.fromCharCode(64 + option.option_no)}
-                              </Badge>
-                              
-                              {option.option_image_url ? (
-                                <div className="relative inline-block">
-                                  <img 
-                                    src={option.option_image_url} 
-                                    alt={`Option ${option.option_no}`}
-                                    className="max-h-24 rounded border"
-                                  />
-                                  <Button
-                                    variant="destructive"
-                                    size="icon"
-                                    className="absolute -top-2 -right-2 h-5 w-5"
-                                    onClick={() => option.id && updateOptionImageMutation.mutate({ id: option.id, url: null })}
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="flex gap-2">
-                                  <Input
-                                    placeholder={`Option ${String.fromCharCode(64 + option.option_no)} text`}
-                                    defaultValue={option.option_text || ''}
-                                    onBlur={(e) => {
-                                      if (option.id && e.target.value !== option.option_text) {
-                                        updateOptionTextMutation.mutate({
-                                          id: option.id,
-                                          option_text: e.target.value,
-                                        });
-                                      }
-                                    }}
-                                    className="flex-1"
-                                  />
-                                  <label className="cursor-pointer">
-                                    {uploadingOptionId === option.id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Button type="button" variant="outline" size="icon" asChild>
-                                        <span>
-                                          <ImageIcon className="w-4 h-4" />
-                                        </span>
-                                      </Button>
-                                    )}
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file && option.id) handleImageUpload(file, 'option', option.id);
-                                      }}
-                                    />
-                                  </label>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={questions.map(q => q.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="grid gap-6">
+                {questions.map((question) => (
+                  <SortableQuestionCard
+                    key={question.id}
+                    question={question}
+                    uploadingQuestionId={uploadingQuestionId}
+                    uploadingOptionId={uploadingOptionId}
+                    onUpdateQuestionText={(id, text) => 
+                      updateQuestionTextMutation.mutate({ id, question_text: text })
+                    }
+                    onUpdateQuestionImage={(id, url) => 
+                      updateQuestionImageMutation.mutate({ id, url })
+                    }
+                    onUpdateOptionText={(id, text) => 
+                      updateOptionTextMutation.mutate({ id, option_text: text })
+                    }
+                    onUpdateOptionImage={(id, url) => 
+                      updateOptionImageMutation.mutate({ id, url })
+                    }
+                    onSetCorrectAnswer={(questionId, optionId) => 
+                      setCorrectAnswerMutation.mutate({ questionId, optionId })
+                    }
+                    onDeleteQuestion={(id) => deleteQuestionMutation.mutate(id)}
+                    onImageUpload={handleImageUpload}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         {/* Add More Button at Bottom */}
