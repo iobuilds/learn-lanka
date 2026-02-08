@@ -139,6 +139,23 @@ const PaymentVerificationDialog = ({
           created_by: user.id,
         });
 
+      // Send SMS notification
+      try {
+        await supabase.functions.invoke('send-sms-notification', {
+          body: {
+            type: 'payment_status',
+            targetUsers: [payment.user_id],
+            data: {
+              approved,
+              amount: payment.amount.toLocaleString(),
+              reason: !approved && note ? note : undefined,
+            },
+          },
+        });
+      } catch (smsError) {
+        console.error('SMS notification failed:', smsError);
+      }
+
       toast({
         title: approved ? 'Payment Approved' : 'Payment Rejected',
         description: `The payment has been ${approved ? 'approved' : 'rejected'} and the user has been notified.`,
