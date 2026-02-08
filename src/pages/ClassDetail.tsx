@@ -33,11 +33,12 @@ import BankAccountsList from '@/components/payments/BankAccountsList';
 
 const ClassDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [enrollCode, setEnrollCode] = useState('');
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
 
   // Fetch class details
   const { data: classData, isLoading: classLoading } = useQuery({
@@ -170,6 +171,52 @@ const ClassDetail = () => {
       toast.error(error.message || 'Failed to enroll');
     },
   });
+
+  // Download PDF with watermark
+  const handleDownloadPdf = async (lessonId: string, pdfUrl: string) => {
+    if (!session?.access_token) {
+      toast.error('Please log in to download');
+      return;
+    }
+
+    setDownloadingPdf(lessonId);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/download-pdf-watermark`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ pdfUrl }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to download PDF');
+      }
+
+      // Create download link
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `material-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('PDF downloaded with watermark');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast.error(error.message || 'Failed to download PDF');
+    } finally {
+      setDownloadingPdf(null);
+    }
+  };
 
   const isEnrolled = !!enrollment;
   const paymentStatus = currentPayment?.status === 'APPROVED' ? 'PAID' 
@@ -456,14 +503,29 @@ const ClassDetail = () => {
                             {/* Materials */}
                             <div className="flex items-center gap-2 mt-3 flex-wrap">
                               {lesson.pdf_url && (
-                                <Button variant="outline" size="sm" className="gap-1">
-                                  <FileText className="w-4 h-4" />
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="gap-1"
+                                  onClick={() => handleDownloadPdf(lesson.id, lesson.pdf_url)}
+                                  disabled={downloadingPdf === lesson.id}
+                                >
+                                  {downloadingPdf === lesson.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <FileText className="w-4 h-4" />
+                                  )}
                                   PDF
                                   <Download className="w-3 h-3" />
                                 </Button>
                               )}
                               {lesson.youtube_url && (
-                                <Button variant="outline" size="sm" className="gap-1">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="gap-1"
+                                  onClick={() => window.open(lesson.youtube_url, '_blank')}
+                                >
                                   <Youtube className="w-4 h-4 text-red-500" />
                                   Watch Video
                                 </Button>
