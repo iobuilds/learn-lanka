@@ -75,6 +75,7 @@ const AdminClasses = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
   const [deleteClassId, setDeleteClassId] = useState<string | null>(null);
+  const [editingClass, setEditingClass] = useState<ClassData | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -85,6 +86,26 @@ const AdminClasses = () => {
   const [isPrivate, setIsPrivate] = useState(false);
   const [maxStudents, setMaxStudents] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+
+  // Load form data when editing
+  const openEditDialog = (cls: ClassData) => {
+    setEditingClass(cls);
+    setTitle(cls.title);
+    setDescription(cls.description || '');
+    setGradeMin(cls.grade_min.toString());
+    setGradeMax(cls.grade_max.toString());
+    setMonthlyFee(cls.monthly_fee_amount.toString());
+    setIsPrivate(cls.is_private);
+    setMaxStudents(cls.max_students?.toString() || '');
+    setImageUrl(cls.image_url || '');
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingClass(null);
+    resetForm();
+  };
 
   // Fetch classes from database
   const { data: classes = [], isLoading } = useQuery({
@@ -148,11 +169,40 @@ const AdminClasses = () => {
     onSuccess: () => {
       toast.success('Class created successfully!');
       queryClient.invalidateQueries({ queryKey: ['admin-classes'] });
-      setIsDialogOpen(false);
-      resetForm();
+      closeDialog();
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create class');
+    },
+  });
+
+  // Update class mutation
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingClass) return;
+      const { error } = await supabase
+        .from('classes')
+        .update({
+          title,
+          description: description || null,
+          grade_min: parseInt(gradeMin),
+          grade_max: parseInt(gradeMax),
+          monthly_fee_amount: parseInt(monthlyFee),
+          is_private: isPrivate,
+          private_code: isPrivate ? (editingClass.private_code || generatePrivateCode()) : null,
+          max_students: isPrivate && maxStudents ? parseInt(maxStudents) : null,
+          image_url: imageUrl || null,
+        })
+        .eq('id', editingClass.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Class updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['admin-classes'] });
+      closeDialog();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update class');
     },
   });
 
@@ -174,6 +224,14 @@ const AdminClasses = () => {
       toast.error(error.message || 'Failed to delete class');
     },
   });
+
+  const handleSubmit = () => {
+    if (editingClass) {
+      updateMutation.mutate();
+    } else {
+      createMutation.mutate();
+    }
+  };
 
   const resetForm = () => {
     setTitle('');
@@ -209,18 +267,18 @@ const AdminClasses = () => {
             <h1 className="text-2xl font-bold text-foreground">Classes</h1>
             <p className="text-muted-foreground">Manage your ICT classes</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => !open && closeDialog()}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => { setEditingClass(null); resetForm(); }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Class
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create New Class</DialogTitle>
+                <DialogTitle>{editingClass ? 'Edit Class' : 'Create New Class'}</DialogTitle>
                 <DialogDescription>
-                  Add a new class to your platform
+                  {editingClass ? 'Update class details' : 'Add a new class to your platform'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -349,12 +407,15 @@ const AdminClasses = () => {
                 )}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={closeDialog}>Cancel</Button>
                 <Button 
-                  onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || !title || !gradeMin || !gradeMax || !monthlyFee}
+                  onClick={handleSubmit}
+                  disabled={(editingClass ? updateMutation.isPending : createMutation.isPending) || !title || !gradeMin || !gradeMax || !monthlyFee}
                 >
-                  {createMutation.isPending ? 'Creating...' : 'Create Class'}
+                  {editingClass 
+                    ? (updateMutation.isPending ? 'Updating...' : 'Update Class')
+                    : (createMutation.isPending ? 'Creating...' : 'Create Class')
+                  }
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -423,7 +484,7 @@ const AdminClasses = () => {
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(cls)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Edit Class
                         </DropdownMenuItem>
