@@ -19,6 +19,7 @@ interface Payment {
   id: string;
   user_id: string;
   payment_type: string;
+  ref_id: string;
   amount: number;
   slip_url: string | null;
   status: string;
@@ -49,6 +50,15 @@ const PaymentVerificationDialog = ({
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
+  const getPaymentTypeLabel = (type: string) => {
+    switch (type) {
+      case 'CLASS_MONTH': return 'Class Monthly Fee';
+      case 'RANK_PAPER': return 'Rank Paper';
+      case 'SHOP_ORDER': return 'Shop Order';
+      default: return type;
+    }
+  };
+
   const handleVerify = async (approved: boolean) => {
     if (!payment || !user) return;
 
@@ -71,9 +81,28 @@ const PaymentVerificationDialog = ({
 
       if (error) throw error;
 
+      // Create notification for the user
+      const notificationTitle = approved 
+        ? 'Payment Approved ✅' 
+        : 'Payment Rejected ❌';
+      
+      const notificationMessage = approved
+        ? `Your payment of Rs. ${payment.amount.toLocaleString()} for ${getPaymentTypeLabel(payment.payment_type)} has been approved. You now have access to the content.`
+        : `Your payment of Rs. ${payment.amount.toLocaleString()} for ${getPaymentTypeLabel(payment.payment_type)} was rejected.${note ? ` Reason: ${note}` : ' Please contact support for more information.'}`;
+
+      await supabase
+        .from('notifications')
+        .insert({
+          title: notificationTitle,
+          message: notificationMessage,
+          target_type: 'USER',
+          target_ref: payment.user_id,
+          created_by: user.id,
+        });
+
       toast({
         title: approved ? 'Payment Approved' : 'Payment Rejected',
-        description: `The payment has been ${approved ? 'approved' : 'rejected'} successfully.`,
+        description: `The payment has been ${approved ? 'approved' : 'rejected'} and the user has been notified.`,
       });
 
       setNote('');
@@ -115,7 +144,16 @@ const PaymentVerificationDialog = ({
             </div>
             <div className="p-3 rounded-lg bg-muted">
               <p className="text-sm text-muted-foreground">Amount</p>
-              <p className="text-xl font-bold">Rs. {payment.amount.toLocaleString()}</p>
+              <p className="text-xl font-bold text-primary">Rs. {payment.amount.toLocaleString()}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted">
+              <p className="text-sm text-muted-foreground">Payment Type</p>
+              <p className="font-medium">{getPaymentTypeLabel(payment.payment_type)}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted">
+              <p className="text-sm text-muted-foreground">Date</p>
+              <p className="font-medium">{new Date(payment.created_at).toLocaleDateString()}</p>
+              <p className="text-xs text-muted-foreground">{new Date(payment.created_at).toLocaleTimeString()}</p>
             </div>
           </div>
 
