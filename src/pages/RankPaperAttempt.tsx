@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Clock, 
@@ -10,7 +10,10 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  FileText
+  FileText,
+  Shield,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,6 +59,7 @@ interface RankPaper {
   has_short_essay: boolean;
   has_essay: boolean;
   essay_pdf_url: string | null;
+  short_essay_pdf_url: string | null;
 }
 
 interface Attempt {
@@ -80,8 +84,12 @@ const RankPaperAttempt = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [tabBlurred, setTabBlurred] = useState(false);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [essayFile, setEssayFile] = useState<File | null>(null);
   const [shortEssayFile, setShortEssayFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch paper and questions
   useEffect(() => {
@@ -220,11 +228,12 @@ const RankPaperAttempt = () => {
     return () => clearInterval(timer);
   }, [attempt]);
 
-  // Tab visibility detection
+  // Anti-cheating measures: Tab visibility, keyboard shortcuts, print screen
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         setTabBlurred(true);
+        setTabSwitchCount(prev => prev + 1);
       }
     };
 
@@ -238,9 +247,56 @@ const RankPaperAttempt = () => {
     
     document.addEventListener('contextmenu', handleContextMenu);
 
+    // Block keyboard shortcuts for screenshots and copy
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Block PrintScreen
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        toast({ title: 'Screenshots disabled', description: 'Taking screenshots is not allowed during the exam' });
+        return;
+      }
+      
+      // Block Ctrl+P (Print), Ctrl+S (Save), Ctrl+C (Copy), Ctrl+Shift+S (Save As)
+      if (e.ctrlKey || e.metaKey) {
+        if (['p', 's', 'c', 'a'].includes(e.key.toLowerCase())) {
+          e.preventDefault();
+          toast({ title: 'Shortcut disabled', description: 'This keyboard shortcut is not allowed during the exam' });
+          return;
+        }
+        // Block Ctrl+Shift+I (DevTools)
+        if (e.shiftKey && e.key.toLowerCase() === 'i') {
+          e.preventDefault();
+          return;
+        }
+      }
+      
+      // Block F12 (DevTools)
+      if (e.key === 'F12') {
+        e.preventDefault();
+        return;
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Disable text selection
+    const handleSelectStart = (e: Event) => {
+      e.preventDefault();
+    };
+    document.addEventListener('selectstart', handleSelectStart);
+
+    // Disable drag
+    const handleDragStart = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    document.addEventListener('dragstart', handleDragStart);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('selectstart', handleSelectStart);
+      document.removeEventListener('dragstart', handleDragStart);
     };
   }, [toast]);
 
@@ -255,21 +311,42 @@ const RankPaperAttempt = () => {
     navigate(`/rank-papers/${id}/results`);
   };
 
+  // Save answer with debounce
+  const saveAnswerToDb = useCallback(async (questionId: string, optionNo: number, attemptId: string) => {
+    setIsSaving(true);
+    try {
+      await supabase
+        .from('rank_answers_mcq')
+        .upsert({
+          attempt_id: attemptId,
+          question_id: questionId,
+          selected_option_no: optionNo,
+        }, {
+          onConflict: 'attempt_id,question_id'
+        });
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error('Failed to save answer:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
   const handleAnswerChange = async (questionId: string, optionNo: number) => {
     if (!attempt) return;
 
+    // Update local state immediately
     setAnswers(prev => ({ ...prev, [questionId]: optionNo }));
 
-    // Save to database
-    await supabase
-      .from('rank_answers_mcq')
-      .upsert({
-        attempt_id: attempt.id,
-        question_id: questionId,
-        selected_option_no: optionNo,
-      }, {
-        onConflict: 'attempt_id,question_id'
-      });
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce save to database (300ms)
+    saveTimeoutRef.current = setTimeout(() => {
+      saveAnswerToDb(questionId, optionNo, attempt.id);
+    }, 300);
   };
 
   const handleFileUpload = async (file: File, type: 'SHORT_ESSAY' | 'ESSAY') => {
@@ -354,6 +431,26 @@ const RankPaperAttempt = () => {
 
   return (
     <StudentLayout>
+      {/* Watermark overlay - deters screenshots */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-40 select-none"
+        style={{
+          background: `repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 100px,
+            rgba(128, 128, 128, 0.03) 100px,
+            rgba(128, 128, 128, 0.03) 200px
+          )`,
+        }}
+      >
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.02]">
+          <div className="text-6xl font-bold text-foreground rotate-[-30deg] whitespace-nowrap">
+            {user?.email || 'EXAM MODE'}
+          </div>
+        </div>
+      </div>
+
       {/* Tab blur warning overlay */}
       {tabBlurred && (
         <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-lg flex items-center justify-center">
@@ -361,8 +458,11 @@ const RankPaperAttempt = () => {
             <CardContent className="p-8 text-center">
               <AlertTriangle className="w-16 h-16 text-warning mx-auto mb-4" />
               <h2 className="text-xl font-bold mb-2">Tab Switch Detected</h2>
-              <p className="text-muted-foreground mb-4">
+              <p className="text-muted-foreground mb-2">
                 Switching tabs during the exam is not allowed. This has been recorded.
+              </p>
+              <p className="text-sm text-destructive mb-4">
+                Warning count: {tabSwitchCount}
               </p>
               <Button onClick={() => setTabBlurred(false)}>
                 Continue Exam
@@ -377,16 +477,35 @@ const RankPaperAttempt = () => {
         <div className="sticky top-0 z-30 bg-background/95 backdrop-blur py-4 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-foreground line-clamp-1">{paper.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                {answeredCount} of {questions.length} answered
-              </p>
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-success" />
+                <h1 className="text-xl font-bold text-foreground line-clamp-1">{paper.title}</h1>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <span>{answeredCount} of {questions.length} answered</span>
+                {/* Save status indicator */}
+                <span className="flex items-center gap-1">
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Saving...
+                    </>
+                  ) : lastSaved ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-success" />
+                      Saved
+                    </>
+                  ) : null}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <Progress value={progress} className="w-32 hidden sm:block" />
               <div className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-lg font-bold",
-                timeLeft < 300 ? "bg-destructive/10 text-destructive animate-pulse" : "bg-muted"
+                "flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-lg font-bold transition-all",
+                timeLeft < 60 ? "bg-destructive text-destructive-foreground animate-pulse scale-110" :
+                timeLeft < 300 ? "bg-destructive/10 text-destructive animate-pulse" : 
+                timeLeft < 600 ? "bg-warning/10 text-warning" : "bg-muted"
               )}>
                 <Clock className="w-5 h-5" />
                 {formatTime(timeLeft)}
@@ -395,7 +514,7 @@ const RankPaperAttempt = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="mcq" className="space-y-6">
+        <Tabs defaultValue="mcq" className="space-y-6 exam-mode">
           <TabsList className="grid w-full grid-cols-3">
             {paper.has_mcq && <TabsTrigger value="mcq">MCQ</TabsTrigger>}
             {paper.has_short_essay && <TabsTrigger value="short_essay">Short Essay</TabsTrigger>}
@@ -511,13 +630,29 @@ const RankPaperAttempt = () => {
                 <CardHeader>
                   <CardTitle>Short Essay</CardTitle>
                   <CardDescription>
-                    Write your answer on paper, take a clear photo, and upload it
+                    Download the question paper, write your answers on paper, and upload
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Question Paper Download */}
+                  {paper.short_essay_pdf_url && (
+                    <a
+                      href={paper.short_essay_pdf_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <FileText className="w-8 h-8 text-primary" />
+                      <div>
+                        <p className="font-medium">Short Essay Question Paper</p>
+                        <p className="text-sm text-muted-foreground">Click to download</p>
+                      </div>
+                    </a>
+                  )}
+
                   <div className="p-4 rounded-lg bg-muted/50 border">
                     <p className="text-sm text-muted-foreground">
-                      Tips: Use a well-lit area, ensure text is readable, and upload in JPG/PNG format
+                      Tips: Use a well-lit area, ensure text is readable, and upload in JPG/PNG/PDF format
                     </p>
                   </div>
 
@@ -537,7 +672,7 @@ const RankPaperAttempt = () => {
                     <div className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/50 transition-colors">
                       <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                       <p className="font-medium">
-                        {shortEssayFile ? shortEssayFile.name : 'Click to upload short essay'}
+                        {shortEssayFile ? shortEssayFile.name : 'Click to upload short essay answer'}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         Image or PDF up to 10MB

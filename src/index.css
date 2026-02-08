@@ -176,4 +176,34 @@
   .grid-cards {
     @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
   }
+
+  /* Exam mode - anti-cheating styles */
+  .exam-mode {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .exam-mode img {
+    pointer-events: none;
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+}
+
+/* Print blocking for exam pages */
+@media print {
+  .exam-mode {
+    display: none !important;
+  }
+  
+  body::before {
+    content: "Printing is not allowed during exams";
+    display: block;
+    padding: 2rem;
+    font-size: 1.5rem;
+    text-align: center;
+  }
 }
