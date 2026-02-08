@@ -149,7 +149,9 @@ export type Database = {
           grade_max: number
           grade_min: number
           id: string
+          image_url: string | null
           is_private: boolean
+          max_students: number | null
           monthly_fee_amount: number
           private_code: string | null
           title: string
@@ -162,7 +164,9 @@ export type Database = {
           grade_max: number
           grade_min: number
           id?: string
+          image_url?: string | null
           is_private?: boolean
+          max_students?: number | null
           monthly_fee_amount?: number
           private_code?: string | null
           title: string
@@ -175,10 +179,93 @@ export type Database = {
           grade_max?: number
           grade_min?: number
           id?: string
+          image_url?: string | null
           is_private?: boolean
+          max_students?: number | null
           monthly_fee_amount?: number
           private_code?: string | null
           title?: string
+        }
+        Relationships: []
+      }
+      coupon_usages: {
+        Row: {
+          coupon_id: string
+          id: string
+          payment_id: string | null
+          used_at: string
+          user_id: string
+        }
+        Insert: {
+          coupon_id: string
+          id?: string
+          payment_id?: string | null
+          used_at?: string
+          user_id: string
+        }
+        Update: {
+          coupon_id?: string
+          id?: string
+          payment_id?: string | null
+          used_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_usages_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_usages_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupons: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          used_count: number
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          discount_type: string
+          discount_value: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
         }
         Relationships: []
       }

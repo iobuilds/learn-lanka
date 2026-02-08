@@ -9,7 +9,9 @@ import {
   Edit,
   Trash2,
   Eye,
-  Loader2
+  Loader2,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,19 +33,48 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import ClassDetailDialog from '@/components/admin/ClassDetailDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+
+const DEFAULT_CLASS_IMAGE = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60';
+
+interface ClassData {
+  id: string;
+  title: string;
+  description: string | null;
+  grade_min: number;
+  grade_max: number;
+  monthly_fee_amount: number;
+  is_private: boolean;
+  private_code: string | null;
+  max_students: number | null;
+  image_url: string | null;
+  created_at: string;
+}
 
 const AdminClasses = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
+  const [deleteClassId, setDeleteClassId] = useState<string | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -52,6 +83,8 @@ const AdminClasses = () => {
   const [gradeMax, setGradeMax] = useState('');
   const [monthlyFee, setMonthlyFee] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [maxStudents, setMaxStudents] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
 
   // Fetch classes from database
   const { data: classes = [], isLoading } = useQuery({
@@ -62,7 +95,7 @@ const AdminClasses = () => {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []) as ClassData[];
     },
   });
 
@@ -84,6 +117,16 @@ const AdminClasses = () => {
     enabled: classes.length > 0,
   });
 
+  // Generate private code
+  const generatePrivateCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
   // Create class mutation
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -91,11 +134,14 @@ const AdminClasses = () => {
         .from('classes')
         .insert({
           title,
-          description,
+          description: description || null,
           grade_min: parseInt(gradeMin),
           grade_max: parseInt(gradeMax),
           monthly_fee_amount: parseInt(monthlyFee),
           is_private: isPrivate,
+          private_code: isPrivate ? generatePrivateCode() : null,
+          max_students: isPrivate && maxStudents ? parseInt(maxStudents) : null,
+          image_url: imageUrl || null,
         });
       if (error) throw error;
     },
@@ -122,6 +168,7 @@ const AdminClasses = () => {
     onSuccess: () => {
       toast.success('Class deleted successfully!');
       queryClient.invalidateQueries({ queryKey: ['admin-classes'] });
+      setDeleteClassId(null);
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to delete class');
@@ -135,6 +182,8 @@ const AdminClasses = () => {
     setGradeMax('');
     setMonthlyFee('');
     setIsPrivate(false);
+    setMaxStudents('');
+    setImageUrl('');
   };
 
   const filteredClasses = classes.filter((cls) => 
@@ -167,7 +216,7 @@ const AdminClasses = () => {
                 Add Class
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Class</DialogTitle>
                 <DialogDescription>
@@ -194,6 +243,38 @@ const AdminClasses = () => {
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+
+                {/* Image URL */}
+                <div className="space-y-2">
+                  <Label htmlFor="imageUrl">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" />
+                      Cover Image URL (optional)
+                    </div>
+                  </Label>
+                  <Input 
+                    id="imageUrl" 
+                    placeholder="https://example.com/image.jpg"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty for default image
+                  </p>
+                  {imageUrl && (
+                    <div className="aspect-video rounded-lg overflow-hidden bg-muted mt-2">
+                      <img 
+                        src={imageUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = DEFAULT_CLASS_IMAGE;
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="gradeMin">Grade Range (Min)</Label>
@@ -232,13 +313,40 @@ const AdminClasses = () => {
                     onChange={(e) => setMonthlyFee(e.target.value)}
                   />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>Private Class</Label>
-                    <p className="text-sm text-muted-foreground">Require code to enroll</p>
+                    <Label className="flex items-center gap-2">
+                      <Lock className="w-4 h-4" />
+                      Private Class
+                    </Label>
+                    <p className="text-sm text-muted-foreground">Require invite code to enroll</p>
                   </div>
                   <Switch checked={isPrivate} onCheckedChange={setIsPrivate} />
                 </div>
+
+                {/* Private class settings */}
+                {isPrivate && (
+                  <div className="p-4 border rounded-lg space-y-4 bg-muted/50">
+                    <div className="space-y-2">
+                      <Label htmlFor="maxStudents">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          Max Students (optional)
+                        </div>
+                      </Label>
+                      <Input 
+                        id="maxStudents" 
+                        type="number" 
+                        placeholder="Leave empty for unlimited"
+                        value={maxStudents}
+                        onChange={(e) => setMaxStudents(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        An invite code will be auto-generated
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
@@ -276,7 +384,21 @@ const AdminClasses = () => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredClasses.map((cls) => (
-              <Card key={cls.id} className="card-elevated">
+              <Card key={cls.id} className="card-elevated overflow-hidden">
+                {/* Class Image */}
+                <div className="aspect-video bg-muted relative">
+                  <img 
+                    src={cls.image_url || DEFAULT_CLASS_IMAGE} 
+                    alt={cls.title}
+                    className="w-full h-full object-cover"
+                  />
+                  {cls.is_private && (
+                    <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
+                      <Lock className="w-3 h-3" />
+                      Private
+                    </Badge>
+                  )}
+                </div>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -297,7 +419,7 @@ const AdminClasses = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setSelectedClass(cls)}>
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
@@ -308,7 +430,7 @@ const AdminClasses = () => {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           className="text-destructive"
-                          onClick={() => deleteMutation.mutate(cls.id)}
+                          onClick={() => setDeleteClassId(cls.id)}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Delete Class
@@ -319,23 +441,18 @@ const AdminClasses = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                    {cls.description}
+                    {cls.description || 'No description'}
                   </p>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">
-                        Rs. {cls.monthly_fee_amount.toLocaleString()}/mo
-                      </Badge>
-                      {cls.is_private && (
-                        <Badge variant="secondary" className="gap-1">
-                          <Lock className="w-3 h-3" />
-                          Private
-                        </Badge>
-                      )}
-                    </div>
+                    <Badge variant="outline">
+                      Rs. {cls.monthly_fee_amount.toLocaleString()}/mo
+                    </Badge>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Users className="w-4 h-4" />
-                      <span>{enrollmentCounts[cls.id] || 0}</span>
+                      <span>
+                        {enrollmentCounts[cls.id] || 0}
+                        {cls.max_students && ` / ${cls.max_students}`}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -344,6 +461,35 @@ const AdminClasses = () => {
           </div>
         )}
       </div>
+
+      {/* View Details Dialog */}
+      <ClassDetailDialog
+        classData={selectedClass}
+        enrollmentCount={selectedClass ? enrollmentCounts[selectedClass.id] || 0 : 0}
+        open={!!selectedClass}
+        onOpenChange={(open) => !open && setSelectedClass(null)}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteClassId} onOpenChange={() => setDeleteClassId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Class</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this class? This will also remove all enrollments and related data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteClassId && deleteMutation.mutate(deleteClassId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };
