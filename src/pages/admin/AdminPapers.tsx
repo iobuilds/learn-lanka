@@ -13,10 +13,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -76,13 +75,13 @@ interface Paper {
 const AdminPapers = () => {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingPaper, setEditingPaper] = useState<Paper | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [paperType, setPaperType] = useState<string>('PAST_PAPER');
   const [grade, setGrade] = useState('');
   const [year, setYear] = useState('');
@@ -106,46 +105,69 @@ const AdminPapers = () => {
   // Create paper mutation
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!pdfFile) throw new Error('Please upload a PDF file');
+      if (!pdfFile && !editingPaper) throw new Error('Please upload a PDF file');
 
       setIsUploading(true);
       
-      // Upload PDF
-      const fileName = `${Date.now()}-${pdfFile.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('papers')
-        .upload(fileName, pdfFile);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('papers')
-        .getPublicUrl(fileName);
-
-      // Create paper record
-      const { error } = await supabase
-        .from('papers')
-        .insert({
-          title,
-          description: description || null,
-          paper_type: paperType,
-          grade: grade ? parseInt(grade) : null,
-          year: year ? parseInt(year) : null,
-          term: term ? parseInt(term) : null,
-          pdf_url: urlData.publicUrl,
-          is_free: isFree,
-        });
+      let pdfUrl = editingPaper?.pdf_url || '';
       
-      if (error) throw error;
+      // Upload new PDF if provided
+      if (pdfFile) {
+        const fileName = `${Date.now()}-${pdfFile.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('papers')
+          .upload(fileName, pdfFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('papers')
+          .getPublicUrl(fileName);
+        
+        pdfUrl = urlData.publicUrl;
+      }
+
+      if (editingPaper) {
+        // Update existing paper
+        const { error } = await supabase
+          .from('papers')
+          .update({
+            title,
+            paper_type: paperType,
+            grade: grade ? parseInt(grade) : null,
+            year: year ? parseInt(year) : null,
+            term: term ? parseInt(term) : null,
+            pdf_url: pdfUrl,
+            is_free: isFree,
+          })
+          .eq('id', editingPaper.id);
+        
+        if (error) throw error;
+      } else {
+        // Create new paper
+        const { error } = await supabase
+          .from('papers')
+          .insert({
+            title,
+            paper_type: paperType,
+            grade: grade ? parseInt(grade) : null,
+            year: year ? parseInt(year) : null,
+            term: term ? parseInt(term) : null,
+            pdf_url: pdfUrl,
+            is_free: isFree,
+          });
+        
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success('Paper added!');
+      toast.success(editingPaper ? 'Paper updated!' : 'Paper added!');
       queryClient.invalidateQueries({ queryKey: ['admin-papers'] });
       setIsDialogOpen(false);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to add paper');
+      toast.error(error.message || 'Failed to save paper');
     },
     onSettled: () => {
       setIsUploading(false);
@@ -191,14 +213,26 @@ const AdminPapers = () => {
 
   const resetForm = () => {
     setTitle('');
-    setDescription('');
     setPaperType('PAST_PAPER');
     setGrade('');
     setYear('');
     setTerm('');
     setIsFree(false);
     setPdfFile(null);
+    setEditingPaper(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const openEditDialog = (paper: Paper) => {
+    setEditingPaper(paper);
+    setTitle(paper.title);
+    setPaperType(paper.paper_type);
+    setGrade(paper.grade?.toString() || '');
+    setYear(paper.year?.toString() || '');
+    setTerm(paper.term?.toString() || '');
+    setIsFree(paper.is_free);
+    setPdfFile(null);
+    setIsDialogOpen(true);
   };
 
   const getPaperTypeLabel = (type: string) => {
@@ -232,23 +266,26 @@ const AdminPapers = () => {
             <h1 className="text-2xl font-bold text-foreground">Downloadable Papers</h1>
             <p className="text-muted-foreground">Past papers and exam resources for download</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => resetForm()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Paper
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Add Paper</DialogTitle>
+                <DialogTitle>{editingPaper ? 'Edit Paper' : 'Add Paper'}</DialogTitle>
                 <DialogDescription>
-                  Upload a past paper or exam for students to download
+                  {editingPaper ? 'Update paper details' : 'Upload a past paper or exam for students to download'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Paper Title</Label>
+                  <Label htmlFor="title">Paper Title *</Label>
                   <Input 
                     id="title" 
                     placeholder="e.g., A/L ICT 2023 Past Paper" 
@@ -257,20 +294,9 @@ const AdminPapers = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description (optional)</Label>
-                  <Textarea 
-                    id="description" 
-                    placeholder="Brief description..."
-                    rows={2}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label>Paper Type</Label>
                   <Select value={paperType} onValueChange={(val) => {
                     setPaperType(val);
-                    // Reset grade and term when changing type
                     if (val === 'PAST_PAPER') {
                       setGrade('');
                       setTerm('');
@@ -333,7 +359,7 @@ const AdminPapers = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>PDF File</Label>
+                  <Label>PDF File {!editingPaper && '*'}</Label>
                   <div className="flex items-center gap-2">
                     <Input 
                       ref={fileInputRef}
@@ -348,11 +374,16 @@ const AdminPapers = () => {
                       Selected: {pdfFile.name}
                     </p>
                   )}
+                  {editingPaper && !pdfFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Current file will be kept if no new file is selected
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div className="space-y-0.5">
                     <Label className="flex items-center gap-2">
-                      {isFree ? <Unlock className="w-4 h-4 text-green-600" /> : <Lock className="w-4 h-4" />}
+                      {isFree ? <Unlock className="w-4 h-4 text-success" /> : <Lock className="w-4 h-4" />}
                       Free Download
                     </Label>
                     <p className="text-sm text-muted-foreground">
@@ -366,12 +397,12 @@ const AdminPapers = () => {
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                 <Button 
                   onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || isUploading || !title || !pdfFile || (paperType === 'SCHOOL_EXAM' && (!grade || !term))}
+                  disabled={createMutation.isPending || isUploading || !title || (!pdfFile && !editingPaper) || (paperType === 'SCHOOL_EXAM' && (!grade || !term))}
                 >
                   {isUploading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {editingPaper ? 'Updating...' : 'Uploading...'}</>
                   ) : (
-                    <><Upload className="w-4 h-4 mr-2" /> Add Paper</>
+                    <><Upload className="w-4 h-4 mr-2" /> {editingPaper ? 'Update Paper' : 'Add Paper'}</>
                   )}
                 </Button>
               </DialogFooter>
@@ -449,7 +480,7 @@ const AdminPapers = () => {
                             <Download className="w-4 h-4 mr-2" />
                             Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(paper)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit
                           </DropdownMenuItem>

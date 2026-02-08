@@ -67,7 +67,7 @@ const AdminUsers = () => {
     user: UserWithDetails;
   } | null>(null);
 
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
   const { data: users = [], isLoading, error } = useAdminUsers();
   const updateStatus = useUpdateUserStatus();
   const addModerator = useAddModeratorRole();
@@ -156,7 +156,7 @@ const AdminUsers = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center py-12">
