@@ -37,17 +37,17 @@ serve(async (req) => {
       );
     }
 
-    // Get user profile for name
+    // Get user profile for name and phone
     const { data: profile } = await supabaseClient
       .from("profiles")
-      .select("first_name, last_name")
+      .select("first_name, last_name, phone")
       .eq("id", user.id)
       .single();
 
     const userName = profile 
       ? `${profile.first_name} ${profile.last_name}` 
-      : user.email || "Unknown";
-    const userId = user.id;
+      : "Unknown";
+    const userPhone = profile?.phone || "Unknown";
 
     // Get PDF URL from request
     const { pdfUrl } = await req.json();
@@ -75,7 +75,7 @@ serve(async (req) => {
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     
     const pages = pdfDoc.getPages();
-    const watermarkText = `${userName} | ID: ${userId.slice(0, 8)}`;
+    const watermarkText = `${userName} | ${userPhone}`;
     
     // Add watermark to each page
     for (const page of pages) {
