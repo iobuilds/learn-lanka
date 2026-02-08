@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useState } from 'react';
-import { FileText, Download, Lock, Loader2 } from 'lucide-react';
+import { FileText, Download, Lock, Loader2, LogIn } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,7 +9,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-
 interface Paper {
   id: string;
   title: string;
@@ -25,10 +25,11 @@ interface Paper {
 }
 
 const Papers = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('PAST_PAPER');
   const [tabInitialized, setTabInitialized] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const isGuest = !user;
 
   // Fetch papers
   const { data: papers = [], isLoading } = useQuery({
@@ -64,13 +65,14 @@ const Papers = () => {
   });
 
   const handleDownloadPdf = async (paper: Paper) => {
-    if (!paper.is_free && !hasActiveSubscription) {
-      toast.error('This paper requires an active subscription');
+    // Guest users must log in to download anything
+    if (!user) {
+      toast.error('Please log in to download papers');
       return;
     }
 
-    if (!user) {
-      toast.error('Please log in to download papers');
+    if (!paper.is_free && !hasActiveSubscription) {
+      toast.error('This paper requires an active subscription');
       return;
     }
 
@@ -145,8 +147,8 @@ const Papers = () => {
     setTabInitialized(true);
   }, [activeTab, papers, tabInitialized]);
 
-  // Filter papers by type
-  const filteredPapers = papers.filter(p => p.paper_type === activeTab);
+  // Filter papers by type (guest users only see free papers - handled in displayPapers)
+  const filteredPapers = (isGuest ? papers.filter(p => p.is_free) : papers).filter(p => p.paper_type === activeTab);
 
   // Group papers by year for past papers
   const papersByYear = filteredPapers.reduce((acc, paper) => {
@@ -173,23 +175,38 @@ const Papers = () => {
     return gradeB - gradeA;
   });
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
-      <StudentLayout>
+      <PageWrapper isGuest={isGuest}>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </StudentLayout>
+      </PageWrapper>
     );
   }
 
+  // For guest users, only show free papers
+  const displayPapers = isGuest ? papers.filter(p => p.is_free) : papers;
+
   return (
-    <StudentLayout>
+    <PageWrapper isGuest={isGuest}>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Past Papers & Resources</h1>
-          <p className="text-muted-foreground">Download past papers and exam resources</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Past Papers & Resources</h1>
+            <p className="text-muted-foreground">
+              {isGuest ? 'Free papers available - Log in for full access' : 'Download past papers and exam resources'}
+            </p>
+          </div>
+          {isGuest && (
+            <Link to="/login">
+              <Button>
+                <LogIn className="w-4 h-4 mr-2" />
+                Log In
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Tabs */}
@@ -203,7 +220,7 @@ const Papers = () => {
           {/* Past Papers Tab */}
           <TabsContent value="PAST_PAPER" className="mt-6">
             {sortedYears.length === 0 ? (
-              <EmptyState message="No past papers available yet" />
+              <EmptyState message={isGuest ? "No free past papers available. Log in for more!" : "No past papers available yet"} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {sortedYears.map((year) => (
@@ -214,6 +231,7 @@ const Papers = () => {
                     onDownload={handleDownloadPdf}
                     hasAccess={hasActiveSubscription}
                     downloadingId={downloadingPdf}
+                    isGuest={isGuest}
                   />
                 ))}
               </div>
@@ -223,7 +241,7 @@ const Papers = () => {
           {/* School Exams Tab */}
           <TabsContent value="SCHOOL_EXAM" className="mt-6">
             {sortedGrades.length === 0 ? (
-              <EmptyState message="No school exams available yet" />
+              <EmptyState message={isGuest ? "No free school exams available. Log in for more!" : "No school exams available yet"} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {sortedGrades.map((grade) => (
@@ -234,6 +252,7 @@ const Papers = () => {
                     onDownload={handleDownloadPdf}
                     hasAccess={hasActiveSubscription}
                     downloadingId={downloadingPdf}
+                    isGuest={isGuest}
                   />
                 ))}
               </div>
@@ -243,7 +262,7 @@ const Papers = () => {
           {/* Model Papers Tab */}
           <TabsContent value="MODEL_PAPER" className="mt-6">
             {filteredPapers.length === 0 ? (
-              <EmptyState message="No model papers available yet" />
+              <EmptyState message={isGuest ? "No free model papers available. Log in for more!" : "No model papers available yet"} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredPapers.map((paper) => (
@@ -253,6 +272,7 @@ const Papers = () => {
                     onDownload={handleDownloadPdf}
                     hasAccess={hasActiveSubscription}
                     downloadingId={downloadingPdf}
+                    isGuest={isGuest}
                   />
                 ))}
               </div>
@@ -260,8 +280,36 @@ const Papers = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </StudentLayout>
+    </PageWrapper>
   );
+};
+
+// Page Wrapper - uses StudentLayout for logged in users, minimal layout for guests
+const PageWrapper = ({ children, isGuest }: { children: React.ReactNode; isGuest: boolean }) => {
+  if (isGuest) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-14 items-center justify-between px-4">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <FileText className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <span className="font-bold text-lg">AL ICT</span>
+            </Link>
+            <Link to="/login">
+              <Button variant="outline" size="sm">
+                <LogIn className="w-4 h-4 mr-2" />
+                Log In
+              </Button>
+            </Link>
+          </div>
+        </header>
+        <main className="container py-6 px-4">{children}</main>
+      </div>
+    );
+  }
+  return <StudentLayout>{children}</StudentLayout>;
 };
 
 // Year Card Component (for Past Papers)
@@ -273,8 +321,9 @@ const YearCard = forwardRef<
     onDownload: (paper: Paper) => void;
     hasAccess: boolean;
     downloadingId: string | null;
+    isGuest: boolean;
   }
->(({ year, papers, onDownload, hasAccess, downloadingId }, ref) => (
+>(({ year, papers, onDownload, hasAccess, downloadingId, isGuest }, ref) => (
   <div ref={ref}>
     <Card className="overflow-hidden">
       <div className="bg-foreground text-background px-4 py-3">
@@ -320,8 +369,9 @@ const GradeCard = forwardRef<
     onDownload: (paper: Paper) => void;
     hasAccess: boolean;
     downloadingId: string | null;
+    isGuest: boolean;
   }
->(({ grade, papers, onDownload, hasAccess, downloadingId }, ref) => {
+>(({ grade, papers, onDownload, hasAccess, downloadingId, isGuest }, ref) => {
   // Group by term
   const byTerm = papers.reduce((acc, p) => {
     const term = p.term ? `Term ${p.term}` : 'Other';
@@ -402,12 +452,14 @@ const PaperCard = ({
   paper, 
   onDownload, 
   hasAccess,
-  downloadingId
+  downloadingId,
+  isGuest
 }: { 
   paper: Paper; 
   onDownload: (paper: Paper) => void;
   hasAccess: boolean;
   downloadingId: string | null;
+  isGuest: boolean;
 }) => {
   const isDownloading = downloadingId === paper.id;
   return (
