@@ -11,7 +11,8 @@ import {
   Users,
   CheckCircle,
   PlayCircle,
-  Youtube
+  Youtube,
+  ListOrdered
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +57,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import RankPaperQuestionsDialog from '@/components/admin/RankPaperQuestionsDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -83,6 +85,7 @@ const AdminRankPapers = () => {
   const [reviewDialog, setReviewDialog] = useState<RankPaper | null>(null);
   const [reviewVideoUrl, setReviewVideoUrl] = useState('');
   const [editingPaper, setEditingPaper] = useState<RankPaper | null>(null);
+  const [questionsDialog, setQuestionsDialog] = useState<RankPaper | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -448,6 +451,12 @@ const AdminRankPapers = () => {
                             <PlayCircle className="w-4 h-4 mr-2" />
                             {paper.review_video_url ? 'Edit Review Video' : 'Add Review Video'}
                           </DropdownMenuItem>
+                          {paper.has_mcq && (
+                            <DropdownMenuItem onClick={() => setQuestionsDialog(paper)}>
+                              <ListOrdered className="w-4 h-4 mr-2" />
+                              Manage Questions
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => openEditDialog(paper)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit Paper
@@ -528,6 +537,13 @@ const AdminRankPapers = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Questions Dialog */}
+      <RankPaperQuestionsDialog
+        paper={questionsDialog}
+        open={!!questionsDialog}
+        onOpenChange={(open) => !open && setQuestionsDialog(null)}
+      />
     </AdminLayout>
   );
 };
