@@ -80,7 +80,13 @@ interface RankPaper {
   review_video_url: string | null;
   unlock_at: string | null;
   lock_at: string | null;
+  class_id: string | null;
   created_at: string;
+}
+
+interface ClassOption {
+  id: string;
+  title: string;
 }
 
 const AdminRankPapers = () => {
@@ -102,6 +108,7 @@ const AdminRankPapers = () => {
   const [feeAmount, setFeeAmount] = useState('');
   const [unlockAt, setUnlockAt] = useState('');
   const [lockAt, setLockAt] = useState('');
+  const [classId, setClassId] = useState<string>('');
 
   // Fetch rank papers
   const { data: papers = [], isLoading } = useQuery({
@@ -113,6 +120,19 @@ const AdminRankPapers = () => {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as RankPaper[];
+    },
+  });
+
+  // Fetch classes for assignment dropdown
+  const { data: classes = [] } = useQuery({
+    queryKey: ['classes-for-rank-papers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, title')
+        .order('title', { ascending: true });
+      if (error) throw error;
+      return data as ClassOption[];
     },
   });
 
@@ -146,6 +166,7 @@ const AdminRankPapers = () => {
         fee_amount: feeAmount ? parseInt(feeAmount) : null,
         unlock_at: unlockAt ? new Date(unlockAt).toISOString() : null,
         lock_at: lockAt ? new Date(lockAt).toISOString() : null,
+        class_id: classId || null,
       };
 
       if (editingPaper) {
@@ -239,6 +260,7 @@ const AdminRankPapers = () => {
     setFeeAmount('');
     setUnlockAt('');
     setLockAt('');
+    setClassId('');
     setEditingPaper(null);
   };
 
@@ -260,6 +282,7 @@ const AdminRankPapers = () => {
     setFeeAmount(paper.fee_amount?.toString() || '');
     setUnlockAt(formatDateTimeLocal(paper.unlock_at));
     setLockAt(formatDateTimeLocal(paper.lock_at));
+    setClassId(paper.class_id || '');
     setIsDialogOpen(true);
   };
 
@@ -344,6 +367,28 @@ const AdminRankPapers = () => {
                     />
                   </div>
                 </div>
+                {/* Class Assignment */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Assign to Class (optional)
+                  </Label>
+                  <Select value={classId} onValueChange={setClassId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="No class - available to all" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No class (public)</SelectItem>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>{cls.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    If assigned, only enrolled students can access this paper.
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="fee">Fee Amount (optional)</Label>
                   <Input 
@@ -459,6 +504,12 @@ const AdminRankPapers = () => {
                               {paper.unlock_at && format(new Date(paper.unlock_at), 'MMM d, HH:mm')}
                               {paper.unlock_at && paper.lock_at && ' - '}
                               {paper.lock_at && format(new Date(paper.lock_at), 'MMM d, HH:mm')}
+                            </div>
+                          )}
+                          {paper.class_id && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Users className="w-3 h-3" />
+                              {classes.find(c => c.id === paper.class_id)?.title || 'Assigned class'}
                             </div>
                           )}
                         </div>
