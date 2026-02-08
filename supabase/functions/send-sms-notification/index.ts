@@ -2,14 +2,23 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface SMSRequest {
-  type: 'rank_paper_published' | 'payment_status' | 'schedule_published' | 'schedule_rescheduled';
+  template_key: string;
   targetUsers?: string[]; // user IDs
   classId?: string;
-  data?: Record<string, any>;
+  variables?: Record<string, string>; // Variables to replace in template
+}
+
+// Replace template variables with actual values
+function replaceVariables(template: string, variables: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value || '');
+  }
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -21,7 +30,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const textlkToken = Deno.env.get('TEXTLK_API_TOKEN');
-    const textlkSenderId = Deno.env.get('TEXTLK_SENDER_ID') || 'A/L ICT';
+    const textlkSenderId = Deno.env.get('TEXTLK_SENDER_ID') || 'TextLK';
 
     if (!textlkToken) {
       console.error('TEXTLK_API_TOKEN not configured');
@@ -33,7 +42,30 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: SMSRequest = await req.json();
-    const { type, targetUsers, classId, data } = body;
+    const { template_key, targetUsers, classId, variables = {} } = body;
+
+    // Fetch template from database
+    const { data: template, error: templateError } = await supabase
+      .from('sms_templates')
+      .select('*')
+      .eq('template_key', template_key)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (templateError) {
+      console.error('Template fetch error:', templateError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch template' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!template) {
+      return new Response(
+        JSON.stringify({ error: `Template "${template_key}" not found or inactive` }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Get target phone numbers
     let phoneNumbers: { phone: string; userId: string; firstName: string }[] = [];
@@ -72,39 +104,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build message based on type
-    let message = '';
-    switch (type) {
-      case 'rank_paper_published':
-        message = `📝 New Rank Paper Available!\n\n${data?.title || 'A new paper'} is now available. Grade ${data?.grade || ''}. Time: ${data?.timeLimit || ''}min.\n\nOpen the app to attempt now!`;
-        break;
-      case 'payment_status':
-        message = data?.approved
-          ? `✅ Payment Approved!\n\nYour payment of Rs.${data?.amount} has been approved.\n\nThank you!`
-          : `❌ Payment Rejected\n\nYour payment was not approved.${data?.reason ? ` Reason: ${data.reason}` : ''}\n\nPlease contact support.`;
-        break;
-      case 'schedule_published':
-        message = `📅 Class Schedule Published!\n\n${data?.className || 'Your class'} schedule for ${data?.month || 'this month'} is now available.\n\nOpen the app to view.`;
-        break;
-      case 'schedule_rescheduled':
-        message = `🔄 Class Rescheduled!\n\n${data?.className || 'Your class'} on ${data?.originalDate || ''} has been rescheduled to ${data?.newDate || ''}.\n\nCheck the app for details.`;
-        break;
-      default:
-        message = data?.message || 'New notification from A/L ICT';
-    }
-
     // Send SMS to each recipient
     const results = [];
     for (const recipient of phoneNumbers) {
       try {
+        // Build personalized message with variables
+        const personalizedVars = {
+          ...variables,
+          student_name: recipient.firstName || 'Student',
+        };
+        const message = replaceVariables(template.template_body, personalizedVars);
+
         // Format phone number (ensure it starts with country code)
         let phone = recipient.phone.replace(/\s+/g, '');
         if (phone.startsWith('0')) {
           phone = '94' + phone.substring(1);
         }
-        if (!phone.startsWith('+')) {
-          phone = '+' + phone;
+        if (!phone.startsWith('94') && !phone.startsWith('+94')) {
+          phone = '94' + phone;
         }
+        // Remove + prefix for API
+        phone = phone.replace(/^\+/, '');
 
         const response = await fetch('https://app.text.lk/api/v3/sms/send', {
           method: 'POST',
@@ -116,6 +136,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             recipient: phone,
             sender_id: textlkSenderId,
+            type: 'plain',
             message: message,
           }),
         });
@@ -134,6 +155,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
+        template_used: template_key,
         sent: results.filter(r => r.success).length,
         failed: results.filter(r => !r.success).length,
         results 

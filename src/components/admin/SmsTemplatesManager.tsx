@@ -8,11 +8,14 @@ import {
   ToggleLeft,
   ToggleRight,
   Info,
-  Variable
+  Variable,
+  Send,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -49,6 +52,10 @@ const SmsTemplatesManager = () => {
   const { user } = useAuth();
   const [editingTemplate, setEditingTemplate] = useState<SmsTemplate | null>(null);
   const [editedBody, setEditedBody] = useState('');
+  const [previewTemplate, setPreviewTemplate] = useState<SmsTemplate | null>(null);
+  const [previewVariables, setPreviewVariables] = useState<Record<string, string>>({});
+  const [testPhone, setTestPhone] = useState('');
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   // Fetch templates
   const { data: templates = [], isLoading } = useQuery({
@@ -108,6 +115,32 @@ const SmsTemplatesManager = () => {
     setEditedBody(template.template_body);
   };
 
+  const openPreviewDialog = (template: SmsTemplate) => {
+    setPreviewTemplate(template);
+    // Initialize variables with sample data
+    const sampleData: Record<string, string> = {
+      amount: '2,500',
+      item: 'January 2026 Class Fee',
+      student_name: 'Kasun Perera',
+      reason: 'Invalid slip image',
+      paper_title: 'Data Communication Practice Paper',
+      grade: '11',
+      link: 'https://app.example.com',
+      class_name: 'A/L ICT Theory 2026',
+      month: 'February 2026',
+      old_date: 'Feb 10',
+      new_date: 'Feb 12',
+      order_id: 'ORD-1234',
+      tracking_info: 'Delivered to Colombo hub',
+    };
+    const vars: Record<string, string> = {};
+    template.variables.forEach(v => {
+      vars[v] = sampleData[v] || `[${v}]`;
+    });
+    setPreviewVariables(vars);
+    setTestPhone('');
+  };
+
   const handleSave = () => {
     if (!editingTemplate) return;
     updateMutation.mutate({ id: editingTemplate.id, template_body: editedBody });
@@ -115,6 +148,43 @@ const SmsTemplatesManager = () => {
 
   const insertVariable = (variable: string) => {
     setEditedBody(prev => prev + `{${variable}}`);
+  };
+
+  // Replace variables in template body for preview
+  const getPreviewMessage = () => {
+    if (!previewTemplate) return '';
+    let message = previewTemplate.template_body;
+    for (const [key, value] of Object.entries(previewVariables)) {
+      message = message.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+    }
+    return message;
+  };
+
+  const handleSendTest = async () => {
+    if (!previewTemplate || !testPhone.trim()) {
+      toast.error('Please enter a phone number');
+      return;
+    }
+
+    setIsSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-bulk-sms', {
+        body: {
+          recipients: [testPhone],
+          message: getPreviewMessage(),
+        },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+
+      toast.success('Test SMS sent!');
+    } catch (error: any) {
+      console.error('Test SMS error:', error);
+      toast.error(error.message || 'Failed to send test SMS');
+    } finally {
+      setIsSendingTest(false);
+    }
   };
 
   if (isLoading) {
@@ -174,6 +244,18 @@ const SmsTemplatesManager = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => openPreviewDialog(template)}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Preview & Test</TooltipContent>
+                  </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button 
@@ -286,6 +368,89 @@ const SmsTemplatesManager = () => {
                 <Save className="w-4 h-4 mr-2" />
               )}
               Save Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview & Test Dialog */}
+      <Dialog open={!!previewTemplate} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Preview & Test SMS</DialogTitle>
+            <DialogDescription>
+              {previewTemplate?.template_name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Variable Inputs */}
+            {previewTemplate?.variables && previewTemplate.variables.length > 0 && (
+              <div className="space-y-3">
+                <Label>Sample Variables</Label>
+                <div className="grid gap-3">
+                  {previewTemplate.variables.map((variable) => (
+                    <div key={variable} className="flex items-center gap-2">
+                      <Label className="w-32 text-xs font-mono text-muted-foreground">
+                        {'{' + variable + '}'}
+                      </Label>
+                      <Input
+                        value={previewVariables[variable] || ''}
+                        onChange={(e) => setPreviewVariables(prev => ({
+                          ...prev,
+                          [variable]: e.target.value
+                        }))}
+                        className="flex-1"
+                        placeholder={`Value for ${variable}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Preview */}
+            <div className="space-y-2">
+              <Label>Message Preview</Label>
+              <div className="p-4 rounded-lg bg-muted border-2 border-dashed">
+                <p className="text-sm whitespace-pre-wrap">{getPreviewMessage()}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {getPreviewMessage().length} characters
+              </p>
+            </div>
+
+            {/* Test Send */}
+            <div className="space-y-2">
+              <Label>Send Test SMS</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Phone number (e.g., 0771234567)"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  className="flex-1"
+                />
+                <Button 
+                  onClick={handleSendTest}
+                  disabled={isSendingTest || !testPhone.trim()}
+                >
+                  {isSendingTest ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                This will send a real SMS to the entered number
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewTemplate(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
