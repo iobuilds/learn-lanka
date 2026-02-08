@@ -66,6 +66,8 @@ interface Attempt {
   id: string;
   ends_at: string;
   submitted_at: string | null;
+  tab_switch_count: number;
+  window_close_count: number;
 }
 
 const RankPaperAttempt = () => {
@@ -85,11 +87,13 @@ const RankPaperAttempt = () => {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [tabBlurred, setTabBlurred] = useState(false);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [windowCloseCount, setWindowCloseCount] = useState(0);
   const [essayFile, setEssayFile] = useState<File | null>(null);
   const [shortEssayFile, setShortEssayFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const violationSaveRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch paper and questions
   useEffect(() => {
@@ -126,6 +130,16 @@ const RankPaperAttempt = () => {
           return;
         }
         setAttempt(existingAttempt);
+        
+        // Load existing violation counts
+        setTabSwitchCount(existingAttempt.tab_switch_count || 0);
+        setWindowCloseCount((existingAttempt.window_close_count || 0) + 1); // Increment for this session
+        
+        // Save the incremented window close count
+        await supabase
+          .from('rank_attempts')
+          .update({ window_close_count: (existingAttempt.window_close_count || 0) + 1 })
+          .eq('id', existingAttempt.id);
         
         // Calculate remaining time
         const endTime = new Date(existingAttempt.ends_at).getTime();
@@ -228,12 +242,36 @@ const RankPaperAttempt = () => {
     return () => clearInterval(timer);
   }, [attempt]);
 
+  // Save violations to database
+  const saveViolations = useCallback(async (newTabCount: number, newWindowCount: number) => {
+    if (!attempt) return;
+    
+    // Debounce the save
+    if (violationSaveRef.current) {
+      clearTimeout(violationSaveRef.current);
+    }
+    
+    violationSaveRef.current = setTimeout(async () => {
+      await supabase
+        .from('rank_attempts')
+        .update({ 
+          tab_switch_count: newTabCount,
+          window_close_count: newWindowCount 
+        })
+        .eq('id', attempt.id);
+    }, 500);
+  }, [attempt]);
+
   // Anti-cheating measures: Tab visibility, keyboard shortcuts, print screen
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden && attempt) {
         setTabBlurred(true);
-        setTabSwitchCount(prev => prev + 1);
+        setTabSwitchCount(prev => {
+          const newCount = prev + 1;
+          saveViolations(newCount, windowCloseCount);
+          return newCount;
+        });
       }
     };
 
@@ -461,9 +499,15 @@ const RankPaperAttempt = () => {
               <p className="text-muted-foreground mb-2">
                 Switching tabs during the exam is not allowed. This has been recorded.
               </p>
-              <p className="text-sm text-destructive mb-4">
-                Warning count: {tabSwitchCount}
-              </p>
+              <div className="p-3 rounded-lg bg-destructive/10 mb-4">
+                <p className="text-sm font-medium text-destructive">
+                  Integrity Violations:
+                </p>
+                <div className="text-sm text-muted-foreground mt-1 space-y-1">
+                  <p>• Tab switches: {tabSwitchCount}</p>
+                  <p>• Window reopens: {windowCloseCount}</p>
+                </div>
+              </div>
               <Button onClick={() => setTabBlurred(false)}>
                 Continue Exam
               </Button>
@@ -483,6 +527,13 @@ const RankPaperAttempt = () => {
               </div>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <span>{answeredCount} of {questions.length} answered</span>
+                {/* Violation indicator */}
+                {(tabSwitchCount > 0 || windowCloseCount > 0) && (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <AlertTriangle className="w-3 h-3" />
+                    {tabSwitchCount + windowCloseCount} violations
+                  </span>
+                )}
                 {/* Save status indicator */}
                 <span className="flex items-center gap-1">
                   {isSaving ? (

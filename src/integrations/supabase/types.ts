@@ -619,7 +619,9 @@ export type Database = {
           rank_paper_id: string
           started_at: string
           submitted_at: string | null
+          tab_switch_count: number
           user_id: string
+          window_close_count: number
         }
         Insert: {
           auto_closed?: boolean
@@ -628,7 +630,9 @@ export type Database = {
           rank_paper_id: string
           started_at?: string
           submitted_at?: string | null
+          tab_switch_count?: number
           user_id: string
+          window_close_count?: number
         }
         Update: {
           auto_closed?: boolean
@@ -637,7 +641,9 @@ export type Database = {
           rank_paper_id?: string
           started_at?: string
           submitted_at?: string | null
+          tab_switch_count?: number
           user_id?: string
+          window_close_count?: number
         }
         Relationships: [
           {

@@ -86,6 +86,30 @@ const RankPaperDetail = () => {
     enabled: !!id && !!user && !!paper,
   });
 
+  const openExamWindow = (url: string) => {
+    // Open in a new fullscreen popup window
+    const width = window.screen.width;
+    const height = window.screen.height;
+    const examWindow = window.open(
+      url,
+      'exam_window',
+      `width=${width},height=${height},left=0,top=0,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
+    );
+    
+    if (examWindow) {
+      // Try to make it fullscreen
+      examWindow.moveTo(0, 0);
+      examWindow.resizeTo(width, height);
+      
+      // Close this window/tab or navigate away
+      toast.success('Exam opened in a new window');
+    } else {
+      // Popup blocked, navigate normally
+      toast.info('Please allow popups for the best exam experience');
+      navigate(url);
+    }
+  };
+
   const handleStartAttempt = async () => {
     if (!user || !paper) return;
 
@@ -104,14 +128,14 @@ const RankPaperDetail = () => {
           toast.info('You have already completed this paper');
           navigate(`/rank-papers/${paper.id}/results`);
         } else {
-          // Continue existing attempt
-          navigate(`/rank-papers/${paper.id}/attempt`);
+          // Continue existing attempt in new window
+          openExamWindow(`/rank-papers/${paper.id}/attempt`);
         }
         return;
       }
 
-      // Navigate to attempt page - it will create the attempt
-      navigate(`/rank-papers/${paper.id}/attempt`);
+      // Open attempt page in new window - it will create the attempt
+      openExamWindow(`/rank-papers/${paper.id}/attempt`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to start attempt');
     } finally {
@@ -234,8 +258,10 @@ const RankPaperDetail = () => {
                 <div className="space-y-2 text-sm">
                   <p className="font-medium text-warning">Important Instructions</p>
                   <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>Exam opens in a new fullscreen window</li>
                     <li>Once started, the timer cannot be paused</li>
-                    <li>Switching tabs or windows will be recorded</li>
+                    <li>Switching tabs or closing the window will be recorded</li>
+                    <li>If you accidentally close, you can resume from this page</li>
                     <li>Screenshots and copy/paste are disabled</li>
                     <li>Your answers are auto-saved as you progress</li>
                     <li>Make sure you have a stable internet connection</li>
