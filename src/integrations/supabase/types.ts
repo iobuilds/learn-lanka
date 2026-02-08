@@ -379,12 +379,13 @@ export type Database = {
           created_by: string | null
           description: string | null
           download_count: number
-          grade: number
+          grade: number | null
           id: string
           is_free: boolean
           paper_type: string
           pdf_url: string
           subject: string | null
+          term: number | null
           title: string
           year: number | null
         }
@@ -393,12 +394,13 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           download_count?: number
-          grade: number
+          grade?: number | null
           id?: string
           is_free?: boolean
           paper_type: string
           pdf_url: string
           subject?: string | null
+          term?: number | null
           title: string
           year?: number | null
         }
@@ -407,12 +409,13 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           download_count?: number
-          grade?: number
+          grade?: number | null
           id?: string
           is_free?: boolean
           paper_type?: string
           pdf_url?: string
           subject?: string | null
+          term?: number | null
           title?: string
           year?: number | null
         }
