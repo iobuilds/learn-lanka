@@ -109,17 +109,18 @@ const AdminRankPaperQuestions = () => {
     }
   }, [questions]);
 
-  // Reorder questions mutation
+  // Reorder questions mutation using RPC for atomic updates
   const reorderMutation = useMutation({
     mutationFn: async (reorderedQuestions: MCQQuestion[]) => {
-      // Execute updates sequentially to avoid race conditions
-      for (let i = 0; i < reorderedQuestions.length; i++) {
-        const { error } = await supabase
-          .from('rank_mcq_questions')
-          .update({ q_no: i + 1 })
-          .eq('id', reorderedQuestions[i].id);
-        if (error) throw error;
-      }
+      const questionIds = reorderedQuestions.map(q => q.id);
+      const newOrder = reorderedQuestions.map((_, index) => index + 1);
+      
+      const { error } = await supabase.rpc('reorder_rank_mcq_questions', {
+        question_ids: questionIds,
+        new_order: newOrder,
+      });
+      
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rank-mcq-questions', paperId] });
