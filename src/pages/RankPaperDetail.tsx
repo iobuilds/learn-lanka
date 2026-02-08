@@ -8,8 +8,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Lock,
-  Users,
-  Award
+  Award,
+  CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,16 +25,20 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import StudentLayout from '@/components/layouts/StudentLayout';
+import PaymentUploadForm from '@/components/payments/PaymentUploadForm';
+import BankAccountsList from '@/components/payments/BankAccountsList';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 const RankPaperDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showStartDialog, setShowStartDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [starting, setStarting] = useState(false);
 
   // Fetch paper details
@@ -68,26 +72,68 @@ const RankPaperDetail = () => {
     enabled: !!id && !!user,
   });
 
-  // Check if user has paid for this paper
-  const { data: hasPaid } = useQuery({
+  // Check if user has paid for this specific rank paper
+  const { data: rankPaperPayment } = useQuery({
     queryKey: ['rank-paper-payment', id, user?.id],
     queryFn: async () => {
-      if (!user || !paper?.fee_amount) return true; // Free paper
+      if (!user) return null;
+      const { data } = await supabase
+        .from('payments')
+        .select('id, status')
+        .eq('user_id', user.id)
+        .eq('ref_id', id)
+        .eq('payment_type', 'RANK_PAPER')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Check if user has paid for current month's class fee (grants free access to class rank papers)
+  const { data: hasClassMonthlyAccess } = useQuery({
+    queryKey: ['class-monthly-access', paper?.class_id, user?.id],
+    queryFn: async () => {
+      if (!user || !paper?.class_id) return false;
+      
+      const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const refIdPattern = `${paper.class_id}-${currentMonth}`;
+      
       const { data } = await supabase
         .from('payments')
         .select('id')
         .eq('user_id', user.id)
-        .eq('ref_id', id)
-        .eq('payment_type', 'RANK_PAPER')
+        .eq('payment_type', 'CLASS_MONTH')
         .eq('status', 'APPROVED')
-        .single();
+        .eq('ref_id', refIdPattern)
+        .limit(1)
+        .maybeSingle();
+      
       return !!data;
     },
-    enabled: !!id && !!user && !!paper,
+    enabled: !!paper?.class_id && !!user,
+  });
+
+  // Check user enrollment
+  const { data: isEnrolled } = useQuery({
+    queryKey: ['enrollment-check', paper?.class_id, user?.id],
+    queryFn: async () => {
+      if (!user || !paper?.class_id) return false;
+      const { data } = await supabase
+        .from('class_enrollments')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('class_id', paper.class_id)
+        .eq('status', 'ACTIVE')
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!paper?.class_id && !!user,
   });
 
   const openExamWindow = (url: string) => {
-    // Open in a new fullscreen popup window
     const width = window.screen.width;
     const height = window.screen.height;
     const examWindow = window.open(
@@ -97,14 +143,10 @@ const RankPaperDetail = () => {
     );
     
     if (examWindow) {
-      // Try to make it fullscreen
       examWindow.moveTo(0, 0);
       examWindow.resizeTo(width, height);
-      
-      // Close this window/tab or navigate away
       toast.success('Exam opened in a new window');
     } else {
-      // Popup blocked, navigate normally
       toast.info('Please allow popups for the best exam experience');
       navigate(url);
     }
@@ -115,7 +157,6 @@ const RankPaperDetail = () => {
 
     setStarting(true);
     try {
-      // Check for existing attempt first
       const { data: existing } = await supabase
         .from('rank_attempts')
         .select('id, submitted_at')
@@ -128,13 +169,11 @@ const RankPaperDetail = () => {
           toast.info('You have already completed this paper');
           navigate(`/rank-papers/${paper.id}/results`);
         } else {
-          // Continue existing attempt in new window
           openExamWindow(`/rank-papers/${paper.id}/attempt`);
         }
         return;
       }
 
-      // Open attempt page in new window - it will create the attempt
       openExamWindow(`/rank-papers/${paper.id}/attempt`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to start attempt');
@@ -142,6 +181,11 @@ const RankPaperDetail = () => {
       setStarting(false);
       setShowStartDialog(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['rank-paper-payment', id] });
+    setShowPaymentDialog(false);
   };
 
   if (loadingPaper || loadingAttempt) {
@@ -171,7 +215,16 @@ const RankPaperDetail = () => {
 
   const hasSubmitted = existingAttempt?.submitted_at;
   const hasOngoingAttempt = existingAttempt && !existingAttempt.submitted_at;
-  const needsPayment = paper.fee_amount && !hasPaid;
+  
+  // Determine access status
+  const isFree = !paper.fee_amount;
+  const hasPaidForPaper = rankPaperPayment?.status === 'APPROVED';
+  const hasPendingPayment = rankPaperPayment?.status === 'PENDING';
+  const hasRejectedPayment = rankPaperPayment?.status === 'REJECTED';
+  
+  // Access granted if: free paper, OR paid for paper, OR class monthly payment covers it
+  const hasAccess = isFree || hasPaidForPaper || (paper.class_id && hasClassMonthlyAccess);
+  const needsPayment = paper.fee_amount && !hasAccess && !hasPendingPayment;
 
   return (
     <StudentLayout>
@@ -187,7 +240,7 @@ const RankPaperDetail = () => {
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <CardTitle className="text-2xl">{paper.title}</CardTitle>
+                <CardTitle className="text-xl sm:text-2xl">{paper.title}</CardTitle>
                 <CardDescription>Grade {paper.grade}</CardDescription>
               </div>
               {hasSubmitted && (
@@ -206,20 +259,20 @@ const RankPaperDetail = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Paper Details */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg bg-muted/50">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="p-3 sm:p-4 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm">Time Limit</span>
+                  <span className="text-xs sm:text-sm">Time Limit</span>
                 </div>
-                <p className="font-semibold">{paper.time_limit_minutes} minutes</p>
+                <p className="font-semibold text-sm sm:text-base">{paper.time_limit_minutes} minutes</p>
               </div>
-              <div className="p-4 rounded-lg bg-muted/50">
+              <div className="p-3 sm:p-4 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <FileText className="w-4 h-4" />
-                  <span className="text-sm">Sections</span>
+                  <span className="text-xs sm:text-sm">Sections</span>
                 </div>
-                <p className="font-semibold">
+                <p className="font-semibold text-sm sm:text-base">
                   {[
                     paper.has_mcq && 'MCQ',
                     paper.has_short_essay && 'Short Essay',
@@ -229,25 +282,54 @@ const RankPaperDetail = () => {
               </div>
             </div>
 
-            {/* Fee Section */}
-            {paper.fee_amount ? (
-              <div className="p-4 rounded-lg border bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Paper Fee</span>
-                  <span className="text-xl font-bold">Rs. {paper.fee_amount}</span>
-                </div>
-                {needsPayment && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Payment required before attempting this paper
-                  </p>
-                )}
-              </div>
-            ) : (
+            {/* Access Status Section */}
+            {isFree ? (
               <div className="p-4 rounded-lg border bg-success/5 border-success/20">
                 <div className="flex items-center gap-2 text-success">
                   <CheckCircle className="w-4 h-4" />
                   <span className="font-medium">Free Paper</span>
                 </div>
+              </div>
+            ) : hasAccess ? (
+              <div className="p-4 rounded-lg border bg-success/5 border-success/20">
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="font-medium">
+                    {hasClassMonthlyAccess ? 'Access Included (Monthly Fee Paid)' : 'Paper Fee Paid'}
+                  </span>
+                </div>
+              </div>
+            ) : hasPendingPayment ? (
+              <div className="p-4 rounded-lg border bg-warning/10 border-warning/30">
+                <div className="flex items-center gap-2 text-warning">
+                  <Clock className="w-4 h-4" />
+                  <div>
+                    <span className="font-medium">Payment Verification Pending</span>
+                    <p className="text-sm text-muted-foreground">We'll verify your payment within 24 hours</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-muted-foreground">Paper Fee</span>
+                  <span className="text-xl font-bold">Rs. {paper.fee_amount}</span>
+                </div>
+                {paper.class_id && isEnrolled && (
+                  <p className="text-sm text-muted-foreground">
+                    💡 Pay your monthly class fee to get free access to all class papers
+                  </p>
+                )}
+                {paper.class_id && !isEnrolled && (
+                  <p className="text-sm text-muted-foreground">
+                    Pay individually or enroll in the class for monthly access
+                  </p>
+                )}
+                {hasRejectedPayment && (
+                  <p className="text-sm text-destructive mt-2">
+                    Your previous payment was rejected. Please upload a valid slip.
+                  </p>
+                )}
               </div>
             )}
 
@@ -257,14 +339,11 @@ const RankPaperDetail = () => {
                 <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
                 <div className="space-y-2 text-sm">
                   <p className="font-medium text-warning">Important Instructions</p>
-                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs sm:text-sm">
                     <li>Exam opens in a new fullscreen window</li>
                     <li>Once started, the timer cannot be paused</li>
                     <li>Switching tabs or closing the window will be recorded</li>
-                    <li>If you accidentally close, you can resume from this page</li>
-                    <li>Screenshots and copy/paste are disabled</li>
                     <li>Your answers are auto-saved as you progress</li>
-                    <li>Make sure you have a stable internet connection</li>
                   </ul>
                 </div>
               </div>
@@ -273,14 +352,12 @@ const RankPaperDetail = () => {
             {/* Action Buttons */}
             <div className="flex gap-3">
               {hasSubmitted ? (
-                <>
-                  <Link to={`/rank-papers/${paper.id}/results`} className="flex-1">
-                    <Button className="w-full" variant="outline">
-                      <Award className="w-4 h-4 mr-2" />
-                      View Results
-                    </Button>
-                  </Link>
-                </>
+                <Link to={`/rank-papers/${paper.id}/results`} className="flex-1">
+                  <Button className="w-full" variant="outline">
+                    <Award className="w-4 h-4 mr-2" />
+                    View Results
+                  </Button>
+                </Link>
               ) : hasOngoingAttempt ? (
                 <Button 
                   className="flex-1" 
@@ -289,12 +366,20 @@ const RankPaperDetail = () => {
                   <ChevronRight className="w-4 h-4 mr-2" />
                   Continue Attempt
                 </Button>
-              ) : needsPayment ? (
+              ) : hasPendingPayment ? (
                 <Button className="flex-1" variant="outline" disabled>
-                  <Lock className="w-4 h-4 mr-2" />
-                  Payment Required
+                  <Clock className="w-4 h-4 mr-2" />
+                  Awaiting Verification
                 </Button>
-              ) : (
+              ) : needsPayment ? (
+                <Button 
+                  className="flex-1" 
+                  onClick={() => setShowPaymentDialog(true)}
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pay & Unlock (Rs. {paper.fee_amount})
+                </Button>
+              ) : hasAccess ? (
                 <Button 
                   className="flex-1" 
                   onClick={() => setShowStartDialog(true)}
@@ -307,10 +392,28 @@ const RankPaperDetail = () => {
                   )}
                   Start Paper
                 </Button>
+              ) : (
+                <Button className="flex-1" variant="outline" disabled>
+                  <Lock className="w-4 h-4 mr-2" />
+                  Access Required
+                </Button>
               )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Leaderboard Link */}
+        <Link to={`/rank-papers/${paper.id}/leaderboard`}>
+          <Card className="p-4 hover:bg-muted/50 transition-colors cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Award className="w-5 h-5 text-primary" />
+                <span className="font-medium">View Leaderboard</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </Card>
+        </Link>
       </div>
 
       {/* Start Confirmation Dialog */}
@@ -343,6 +446,35 @@ const RankPaperDetail = () => {
                 'Start Now'
               )}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payment Dialog */}
+      <AlertDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <AlertDialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pay for {paper.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Upload your bank transfer slip to unlock this paper
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <BankAccountsList />
+            
+            <PaymentUploadForm
+              paymentType="RANK_PAPER"
+              refId={paper.id}
+              amount={paper.fee_amount || 0}
+              title="Upload Payment Slip"
+              currentStatus={rankPaperPayment?.status as any}
+              onSuccess={handlePaymentSuccess}
+            />
+          </div>
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
