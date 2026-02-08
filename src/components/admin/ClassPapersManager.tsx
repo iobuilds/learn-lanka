@@ -9,7 +9,9 @@ import {
   X,
   Send,
   Loader2,
-  Download
+  Download,
+  Youtube,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +61,8 @@ interface ClassPaper {
   paper_type: 'DAILY' | 'WEEKLY';
   description: string | null;
   pdf_url: string;
+  review_video_url: string | null;
+  answer_pdf_url: string | null;
   publish_status: 'DRAFT' | 'PUBLISHED';
   published_at: string | null;
   created_at: string;
@@ -72,6 +76,7 @@ interface ClassPapersManagerProps {
 const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const answerFileInputRef = useRef<HTMLInputElement>(null);
   
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -80,7 +85,10 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
   const [description, setDescription] = useState('');
   const [paperType, setPaperType] = useState<'DAILY' | 'WEEKLY'>('DAILY');
   const [pdfUrl, setPdfUrl] = useState('');
+  const [reviewVideoUrl, setReviewVideoUrl] = useState('');
+  const [answerPdfUrl, setAnswerPdfUrl] = useState('');
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadingAnswer, setUploadingAnswer] = useState(false);
   
   // Delete state
   const [deletePaper, setDeletePaper] = useState<ClassPaper | null>(null);
@@ -109,7 +117,7 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
       setUploadingPdf(true);
       try {
         const fileName = `class-papers/${classId}/${Date.now()}-${file.name}`;
-        const { data, error } = await supabase.storage
+        const { error } = await supabase.storage
           .from('papers')
           .upload(fileName, file);
         if (error) throw error;
@@ -132,6 +140,35 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
     },
   });
 
+  // Upload Answer PDF
+  const uploadAnswerMutation = useMutation({
+    mutationFn: async (file: File) => {
+      setUploadingAnswer(true);
+      try {
+        const fileName = `class-papers/${classId}/answers/${Date.now()}-${file.name}`;
+        const { error } = await supabase.storage
+          .from('papers')
+          .upload(fileName, file);
+        if (error) throw error;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('papers')
+          .getPublicUrl(fileName);
+        
+        return publicUrl;
+      } finally {
+        setUploadingAnswer(false);
+      }
+    },
+    onSuccess: (url) => {
+      setAnswerPdfUrl(url);
+      toast.success('Answer PDF uploaded!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to upload answer PDF');
+    },
+  });
+
   // Save paper mutation
   const savePaperMutation = useMutation({
     mutationFn: async () => {
@@ -143,6 +180,8 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
             description: description || null,
             paper_type: paperType,
             pdf_url: pdfUrl,
+            review_video_url: reviewVideoUrl || null,
+            answer_pdf_url: answerPdfUrl || null,
           })
           .eq('id', editingPaper.id);
         if (error) throw error;
@@ -155,6 +194,8 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
             description: description || null,
             paper_type: paperType,
             pdf_url: pdfUrl,
+            review_video_url: reviewVideoUrl || null,
+            answer_pdf_url: answerPdfUrl || null,
           });
         if (error) throw error;
       }
@@ -173,7 +214,6 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
   // Publish paper mutation
   const publishMutation = useMutation({
     mutationFn: async (paperId: string) => {
-      // Update paper status
       const { error: paperError } = await supabase
         .from('class_papers')
         .update({ 
@@ -183,7 +223,6 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
         .eq('id', paperId);
       if (paperError) throw paperError;
 
-      // Create notification for enrolled users
       const paper = papers.find(p => p.id === paperId);
       const { error: notifError } = await supabase
         .from('notifications')
@@ -230,6 +269,8 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
     setDescription('');
     setPaperType('DAILY');
     setPdfUrl('');
+    setReviewVideoUrl('');
+    setAnswerPdfUrl('');
   };
 
   const openEditPaper = (paper: ClassPaper) => {
@@ -238,6 +279,8 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
     setDescription(paper.description || '');
     setPaperType(paper.paper_type);
     setPdfUrl(paper.pdf_url);
+    setReviewVideoUrl(paper.review_video_url || '');
+    setAnswerPdfUrl(paper.answer_pdf_url || '');
     setDialogOpen(true);
   };
 
@@ -253,6 +296,21 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
         return;
       }
       uploadPdfMutation.mutate(file);
+    }
+  };
+
+  const handleAnswerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please select a PDF file');
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error('File size must be less than 20MB');
+        return;
+      }
+      uploadAnswerMutation.mutate(file);
     }
   };
 
@@ -293,7 +351,7 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
                   </div>
                   <div>
                     <p className="font-medium text-foreground">{paper.title}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <Badge variant="outline">
                         {paper.paper_type === 'DAILY' ? 'Daily' : 'Weekly'}
                       </Badge>
@@ -302,6 +360,18 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
                       >
                         {paper.publish_status}
                       </Badge>
+                      {paper.review_video_url && (
+                        <Badge variant="outline" className="gap-1">
+                          <Youtube className="w-3 h-3" />
+                          Video
+                        </Badge>
+                      )}
+                      {paper.answer_pdf_url && (
+                        <Badge variant="outline" className="gap-1">
+                          <Eye className="w-3 h-3" />
+                          Answers
+                        </Badge>
+                      )}
                       {paper.published_at && (
                         <span className="text-xs text-muted-foreground">
                           {new Date(paper.published_at).toLocaleDateString()}
@@ -355,7 +425,7 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
 
       {/* Add/Edit Paper Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingPaper ? 'Edit Paper' : 'Add Paper'}</DialogTitle>
             <DialogDescription>
@@ -394,8 +464,10 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Paper PDF */}
             <div className="space-y-2">
-              <Label>PDF File</Label>
+              <Label>Paper PDF</Label>
               <div className="flex items-center gap-2">
                 <input
                   ref={fileInputRef}
@@ -418,7 +490,7 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="gap-1">
                       <FileText className="w-3 h-3" />
-                      PDF Uploaded
+                      Paper Uploaded
                     </Badge>
                     <Button
                       type="button"
@@ -432,6 +504,60 @@ const ClassPapersManager = ({ classId, classTitle }: ClassPapersManagerProps) =>
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Answer PDF */}
+            <div className="space-y-2">
+              <Label>Answer Sheet PDF (optional - paid users only)</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={answerFileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleAnswerFileChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => answerFileInputRef.current?.click()}
+                  disabled={uploadingAnswer}
+                >
+                  <UploadIcon className="w-4 h-4 mr-2" />
+                  {uploadingAnswer ? 'Uploading...' : 'Choose Answer PDF'}
+                </Button>
+                {answerPdfUrl && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="gap-1">
+                      <Eye className="w-3 h-3" />
+                      Answers Uploaded
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setAnswerPdfUrl('')}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Only visible to students with paid monthly subscription</p>
+            </div>
+
+            {/* Review Video URL */}
+            <div className="space-y-2">
+              <Label htmlFor="reviewVideo">Review Video URL (optional - paid users only)</Label>
+              <Input 
+                id="reviewVideo" 
+                placeholder="https://www.youtube.com/watch?v=..."
+                value={reviewVideoUrl}
+                onChange={(e) => setReviewVideoUrl(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Only visible to students with paid monthly subscription</p>
             </div>
           </div>
           <DialogFooter>
