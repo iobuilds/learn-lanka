@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CheckCircle, XCircle, Loader2, Download, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, XCircle, Loader2, Download, ExternalLink, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -49,6 +49,45 @@ const PaymentVerificationDialog = ({
   const [note, setNote] = useState('');
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [signedSlipUrl, setSignedSlipUrl] = useState<string | null>(null);
+  const [loadingSlip, setLoadingSlip] = useState(false);
+
+  // Generate signed URL for private bucket when dialog opens
+  useEffect(() => {
+    const generateSignedUrl = async () => {
+      if (!payment?.slip_url || !open) {
+        setSignedSlipUrl(null);
+        return;
+      }
+
+      setLoadingSlip(true);
+      try {
+        // Extract path from the full URL
+        const url = new URL(payment.slip_url);
+        const pathMatch = url.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/payment-slips\/(.+)/);
+        
+        if (pathMatch) {
+          const filePath = decodeURIComponent(pathMatch[1]);
+          const { data, error } = await supabase.storage
+            .from('payment-slips')
+            .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+          if (error) throw error;
+          setSignedSlipUrl(data.signedUrl);
+        } else {
+          // Fallback: try using the URL directly
+          setSignedSlipUrl(payment.slip_url);
+        }
+      } catch (error) {
+        console.error('Error generating signed URL:', error);
+        setSignedSlipUrl(null);
+      } finally {
+        setLoadingSlip(false);
+      }
+    };
+
+    generateSignedUrl();
+  }, [payment?.slip_url, open]);
 
   const getPaymentTypeLabel = (type: string) => {
     switch (type) {
@@ -162,17 +201,26 @@ const PaymentVerificationDialog = ({
             <div className="space-y-2">
               <Label>Bank Slip</Label>
               <div className="relative rounded-lg border overflow-hidden bg-muted">
-                {payment.slip_url.endsWith('.pdf') ? (
+                {loadingSlip ? (
+                  <div className="p-8 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !signedSlipUrl ? (
+                  <div className="p-8 text-center">
+                    <ImageOff className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-muted-foreground">Unable to load slip</p>
+                  </div>
+                ) : payment.slip_url.toLowerCase().endsWith('.pdf') ? (
                   <div className="p-8 text-center">
                     <p className="text-muted-foreground mb-4">PDF Document</p>
                     <div className="flex justify-center gap-2">
-                      <a href={payment.slip_url} target="_blank" rel="noopener noreferrer">
+                      <a href={signedSlipUrl} target="_blank" rel="noopener noreferrer">
                         <Button variant="outline" size="sm">
                           <ExternalLink className="w-4 h-4 mr-2" />
                           View PDF
                         </Button>
                       </a>
-                      <a href={payment.slip_url} download>
+                      <a href={signedSlipUrl} download>
                         <Button variant="outline" size="sm">
                           <Download className="w-4 h-4 mr-2" />
                           Download
@@ -182,9 +230,10 @@ const PaymentVerificationDialog = ({
                   </div>
                 ) : (
                   <img
-                    src={payment.slip_url}
+                    src={signedSlipUrl}
                     alt="Payment slip"
                     className="max-h-[400px] w-full object-contain"
+                    onError={() => setSignedSlipUrl(null)}
                   />
                 )}
               </div>
