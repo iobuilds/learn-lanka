@@ -82,6 +82,7 @@ const AdminRankPapers = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [reviewDialog, setReviewDialog] = useState<RankPaper | null>(null);
   const [reviewVideoUrl, setReviewVideoUrl] = useState('');
+  const [editingPaper, setEditingPaper] = useState<RankPaper | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -122,31 +123,41 @@ const AdminRankPapers = () => {
     enabled: papers.length > 0,
   });
 
-  // Create paper mutation
-  const createMutation = useMutation({
+  // Create/Update paper mutation
+  const saveMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('rank_papers')
-        .insert({
-          title,
-          grade: parseInt(grade),
-          time_limit_minutes: parseInt(timeLimit),
-          has_mcq: hasMcq,
-          has_short_essay: hasShortEssay,
-          has_essay: hasEssay,
-          fee_amount: feeAmount ? parseInt(feeAmount) : null,
-          publish_status: 'DRAFT',
-        });
-      if (error) throw error;
+      const paperData = {
+        title,
+        grade: parseInt(grade),
+        time_limit_minutes: parseInt(timeLimit),
+        has_mcq: hasMcq,
+        has_short_essay: hasShortEssay,
+        has_essay: hasEssay,
+        fee_amount: feeAmount ? parseInt(feeAmount) : null,
+      };
+
+      if (editingPaper) {
+        const { error } = await supabase
+          .from('rank_papers')
+          .update(paperData)
+          .eq('id', editingPaper.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('rank_papers')
+          .insert({ ...paperData, publish_status: 'DRAFT' });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success('Rank paper created!');
+      toast.success(editingPaper ? 'Rank paper updated!' : 'Rank paper created!');
       queryClient.invalidateQueries({ queryKey: ['admin-rank-papers'] });
       setIsDialogOpen(false);
+      setEditingPaper(null);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to create paper');
+      toast.error(error.message || 'Failed to save paper');
     },
   });
 
@@ -214,6 +225,19 @@ const AdminRankPapers = () => {
     setHasShortEssay(false);
     setHasEssay(false);
     setFeeAmount('');
+    setEditingPaper(null);
+  };
+
+  const openEditDialog = (paper: RankPaper) => {
+    setEditingPaper(paper);
+    setTitle(paper.title);
+    setGrade(paper.grade.toString());
+    setTimeLimit(paper.time_limit_minutes.toString());
+    setHasMcq(paper.has_mcq);
+    setHasShortEssay(paper.has_short_essay);
+    setHasEssay(paper.has_essay);
+    setFeeAmount(paper.fee_amount?.toString() || '');
+    setIsDialogOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -246,18 +270,23 @@ const AdminRankPapers = () => {
             <h1 className="text-2xl font-bold text-foreground">Rank Papers</h1>
             <p className="text-muted-foreground">Manage timed exams and quizzes</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              resetForm();
+            }
+          }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Paper
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Create Rank Paper</DialogTitle>
+                <DialogTitle>{editingPaper ? 'Edit Rank Paper' : 'Create Rank Paper'}</DialogTitle>
                 <DialogDescription>
-                  Create a new timed exam or quiz
+                  {editingPaper ? 'Update paper details' : 'Create a new timed exam or quiz'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -323,12 +352,12 @@ const AdminRankPapers = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
                 <Button 
-                  onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || !title || !grade}
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saveMutation.isPending || !title || !grade}
                 >
-                  {createMutation.isPending ? 'Creating...' : 'Create Paper'}
+                  {saveMutation.isPending ? (editingPaper ? 'Saving...' : 'Creating...') : (editingPaper ? 'Save Changes' : 'Create Paper')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -421,7 +450,7 @@ const AdminRankPapers = () => {
                             <PlayCircle className="w-4 h-4 mr-2" />
                             {paper.review_video_url ? 'Edit Review Video' : 'Add Review Video'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(paper)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit Paper
                           </DropdownMenuItem>
