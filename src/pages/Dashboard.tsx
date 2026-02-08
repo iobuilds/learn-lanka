@@ -101,17 +101,17 @@ const Dashboard = () => {
     <StudentLayout>
       <div className="section-spacing">
         {/* Welcome Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
-              Welcome back, {profile?.first_name || 'Student'}! 👋
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+              Welcome, {profile?.first_name || 'Student'}! 👋
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Continue your learning journey
             </p>
           </div>
           <Link to="/classes">
-            <Button variant="accent">
+            <Button variant="accent" size="sm" className="w-full sm:w-auto">
               Browse Classes
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -119,58 +119,58 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="card-elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <BookOpen className="w-5 h-5 text-primary" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10">
+                  <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{enrollments.length}</p>
-                  <p className="text-sm text-muted-foreground">Enrolled Classes</p>
+                  <p className="text-xl sm:text-2xl font-bold">{enrollments.length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Classes</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="card-elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-success/10">
-                  <CreditCard className="w-5 h-5 text-success" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-success/10">
+                  <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{paidCount}</p>
-                  <p className="text-sm text-muted-foreground">Paid This Month</p>
+                  <p className="text-xl sm:text-2xl font-bold">{paidCount}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Paid</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="card-elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-accent/10">
-                  <FileText className="w-5 h-5 text-accent" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-accent/10">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{rankPapers.length}</p>
-                  <p className="text-sm text-muted-foreground">Available Papers</p>
+                  <p className="text-xl sm:text-2xl font-bold">{rankPapers.length}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Papers</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="card-elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-secondary">
-                  <TrendingUp className="w-5 h-5 text-secondary-foreground" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-secondary">
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-secondary-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">—</p>
-                  <p className="text-sm text-muted-foreground">Your Rank</p>
+                  <p className="text-xl sm:text-2xl font-bold">—</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Rank</p>
                 </div>
               </div>
             </CardContent>
@@ -179,62 +179,62 @@ const Dashboard = () => {
 
         {/* My Classes */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">My Classes</h2>
-            <Link to="/classes" className="text-sm text-primary hover:text-primary/80">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">My Classes</h2>
+            <Link to="/classes" className="text-xs sm:text-sm text-primary hover:text-primary/80">
               View All
             </Link>
           </div>
 
           {enrollments.length === 0 ? (
             <Card className="card-elevated">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <BookOpen className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="font-medium text-foreground mb-2">No classes enrolled</h3>
-                <p className="text-sm text-muted-foreground mb-4">Browse our catalog to find classes</p>
+              <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12">
+                <BookOpen className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mb-3 sm:mb-4" />
+                <h3 className="font-medium text-foreground mb-2 text-sm sm:text-base">No classes enrolled</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Browse our catalog to find classes</p>
                 <Link to="/classes">
-                  <Button>Browse Classes</Button>
+                  <Button size="sm">Browse Classes</Button>
                 </Link>
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
               {enrollments.map((enrollment) => {
                 const cls = enrollment.classes as any;
                 const paymentStatus = getPaymentStatus(enrollment.class_id);
                 return (
                   <Card key={enrollment.id} className="card-elevated hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{cls?.title}</CardTitle>
+                    <CardHeader className="pb-2 p-3 sm:p-4 sm:pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-sm sm:text-lg line-clamp-1">{cls?.title}</CardTitle>
                         <Badge 
                           variant="outline"
                           className={cn(
+                            "text-xs shrink-0",
                             paymentStatus === 'PAID' && 'badge-paid',
                             paymentStatus === 'PENDING' && 'badge-pending',
                             paymentStatus === 'UNPAID' && 'badge-unpaid'
                           )}
                         >
-                          {paymentStatus === 'PAID' && 'Paid'}
-                          {paymentStatus === 'PENDING' && 'Pending'}
-                          {paymentStatus === 'UNPAID' && 'Unpaid'}
+                          {paymentStatus}
                         </Badge>
                       </div>
-                      <CardDescription className="line-clamp-2">
+                      <CardDescription className="line-clamp-2 text-xs sm:text-sm">
                         {cls?.description}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {currentMonth}
+                            <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="hidden xs:inline">{currentMonth}</span>
+                            <span className="xs:hidden">{new Date().toLocaleString('default', { month: 'short' })}</span>
                           </span>
-                          <span>Rs. {cls?.monthly_fee_amount?.toLocaleString()}/mo</span>
+                          <span>Rs. {cls?.monthly_fee_amount?.toLocaleString()}</span>
                         </div>
                         <Link to={`/classes/${enrollment.class_id}`}>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" className="h-8 px-2 sm:px-3">
                             View
                             <ChevronRight className="w-4 h-4" />
                           </Button>
@@ -249,47 +249,47 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-2 sm:gap-4">
           <Link to="/classes" className="block">
             <Card className="card-elevated hover:border-primary/50 transition-colors h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center">
-                <div className="p-3 rounded-full bg-primary/10 mb-3">
-                  <BookOpen className="w-6 h-6 text-primary" />
+              <CardContent className="p-2 sm:p-4 flex flex-col items-center text-center">
+                <div className="p-2 sm:p-3 rounded-full bg-primary/10 mb-1 sm:mb-3">
+                  <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
                 </div>
-                <h3 className="font-medium text-sm">Browse Classes</h3>
+                <h3 className="font-medium text-xs sm:text-sm">Classes</h3>
               </CardContent>
             </Card>
           </Link>
 
           <Link to="/rank-papers" className="block">
             <Card className="card-elevated hover:border-primary/50 transition-colors h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center">
-                <div className="p-3 rounded-full bg-accent/10 mb-3">
-                  <FileText className="w-6 h-6 text-accent" />
+              <CardContent className="p-2 sm:p-4 flex flex-col items-center text-center">
+                <div className="p-2 sm:p-3 rounded-full bg-accent/10 mb-1 sm:mb-3">
+                  <FileText className="w-4 h-4 sm:w-6 sm:h-6 text-accent" />
                 </div>
-                <h3 className="font-medium text-sm">Rank Papers</h3>
+                <h3 className="font-medium text-xs sm:text-sm">Papers</h3>
               </CardContent>
             </Card>
           </Link>
 
           <Link to="/shop" className="block">
             <Card className="card-elevated hover:border-primary/50 transition-colors h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center">
-                <div className="p-3 rounded-full bg-success/10 mb-3">
-                  <ShoppingBag className="w-6 h-6 text-success" />
+              <CardContent className="p-2 sm:p-4 flex flex-col items-center text-center">
+                <div className="p-2 sm:p-3 rounded-full bg-success/10 mb-1 sm:mb-3">
+                  <ShoppingBag className="w-4 h-4 sm:w-6 sm:h-6 text-success" />
                 </div>
-                <h3 className="font-medium text-sm">Shop Materials</h3>
+                <h3 className="font-medium text-xs sm:text-sm">Shop</h3>
               </CardContent>
             </Card>
           </Link>
 
-          <Link to="/past-papers" className="block">
+          <Link to="/papers" className="block">
             <Card className="card-elevated hover:border-primary/50 transition-colors h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center">
-                <div className="p-3 rounded-full bg-secondary mb-3">
-                  <Clock className="w-6 h-6 text-secondary-foreground" />
+              <CardContent className="p-2 sm:p-4 flex flex-col items-center text-center">
+                <div className="p-2 sm:p-3 rounded-full bg-secondary mb-1 sm:mb-3">
+                  <Clock className="w-4 h-4 sm:w-6 sm:h-6 text-secondary-foreground" />
                 </div>
-                <h3 className="font-medium text-sm">Past Papers</h3>
+                <h3 className="font-medium text-xs sm:text-sm">Past</h3>
               </CardContent>
             </Card>
           </Link>
@@ -298,41 +298,41 @@ const Dashboard = () => {
         {/* Upcoming Rank Papers */}
         {rankPapers.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Available Rank Papers</h2>
-              <Link to="/rank-papers" className="text-sm text-primary hover:text-primary/80">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">Available Papers</h2>
+              <Link to="/rank-papers" className="text-xs sm:text-sm text-primary hover:text-primary/80">
                 View All
               </Link>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
               {rankPapers.slice(0, 2).map((paper) => (
                 <Card key={paper.id} className="card-elevated">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-medium text-foreground">{paper.title}</h3>
-                        <p className="text-sm text-muted-foreground">Grade {paper.grade}</p>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
+                      <div className="min-w-0">
+                        <h3 className="font-medium text-foreground text-sm sm:text-base truncate">{paper.title}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Grade {paper.grade}</p>
                       </div>
                       {paper.fee_amount && (
-                        <Badge variant="outline">Rs. {paper.fee_amount}</Badge>
+                        <Badge variant="outline" className="text-xs shrink-0">Rs. {paper.fee_amount}</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {paper.time_limit_minutes} mins
+                        <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+                        {paper.time_limit_minutes}min
                       </span>
-                      <span>
+                      <span className="truncate">
                         {[
                           paper.has_mcq && 'MCQ',
-                          paper.has_short_essay && 'Short Essay',
+                          paper.has_short_essay && 'Short',
                           paper.has_essay && 'Essay'
                         ].filter(Boolean).join(' • ')}
                       </span>
                     </div>
                     <Link to={`/rank-papers/${paper.id}`}>
-                      <Button variant="outline" className="w-full">
+                      <Button variant="outline" className="w-full" size="sm">
                         Start Paper
                       </Button>
                     </Link>

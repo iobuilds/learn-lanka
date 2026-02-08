@@ -162,19 +162,46 @@
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
   }
   
-  /* Container with consistent padding */
+  /* Container with consistent padding - optimized for mobile */
   .page-container {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6;
+    @apply max-w-7xl mx-auto px-3 sm:px-6 lg:px-8;
   }
 
-  /* Section spacing */
+  /* Section spacing - tighter on mobile */
   .section-spacing {
-    @apply space-y-6;
+    @apply space-y-4 sm:space-y-6;
   }
 
   /* Grid layouts */
   .grid-cards {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4;
+  }
+  
+  /* Mobile-first touch targets */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Mobile card padding */
+  .card-padding {
+    @apply p-3 sm:p-4;
+  }
+  
+  /* Responsive text */
+  .text-responsive-sm {
+    @apply text-xs sm:text-sm;
+  }
+  
+  .text-responsive-base {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-responsive-lg {
+    @apply text-lg sm:text-xl;
+  }
+  
+  .text-responsive-xl {
+    @apply text-xl sm:text-2xl;
   }
 
   /* Exam mode - anti-cheating styles */

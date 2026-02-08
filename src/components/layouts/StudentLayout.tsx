@@ -58,14 +58,14 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="page-container">
-          <div className="flex h-16 items-center justify-between">
+        <div className="page-container py-0">
+          <div className="flex h-14 sm:h-16 items-center justify-between">
             {/* Logo */}
             <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary">
-                <GraduationCap className="w-5 h-5 text-primary-foreground" />
+              <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-primary">
+                <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg text-foreground hidden sm:block">ICT Academy</span>
+              <span className="font-bold text-base sm:text-lg text-foreground hidden xs:block">ICT Academy</span>
             </Link>
 
             {/* Desktop Nav */}
@@ -192,7 +192,7 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
       </header>
 
       {/* Main Content */}
-      <main className="page-container py-6">
+      <main className="page-container py-4 sm:py-6">
         {children}
       </main>
     </div>

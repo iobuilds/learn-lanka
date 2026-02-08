@@ -257,42 +257,42 @@ const ClassDetail = () => {
     return (
       <StudentLayout>
         <div className="section-spacing max-w-3xl mx-auto">
-          <Link to="/classes" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
+          <Link to="/classes" className="inline-flex items-center text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-3 sm:mb-4">
+            <ArrowLeft className="w-4 h-4 mr-1 sm:mr-2" />
             Back to Classes
           </Link>
 
           <Card className="card-elevated">
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
+            <CardHeader className="p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-3 sm:gap-4">
                 <div>
-                  <CardTitle className="text-2xl">{classData.title}</CardTitle>
-                  <CardDescription className="mt-2">
+                  <CardTitle className="text-lg sm:text-2xl">{classData.title}</CardTitle>
+                  <CardDescription className="mt-1 sm:mt-2 text-xs sm:text-sm">
                     {classData.description}
                   </CardDescription>
                 </div>
                 {classData.is_private && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs shrink-0">
                     <Lock className="w-3 h-3" />
                     Private
                   </Badge>
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-sm text-muted-foreground">Grade Level</p>
-                  <p className="text-lg font-semibold">
+            <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="p-3 sm:p-4 rounded-lg bg-muted">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Grade</p>
+                  <p className="text-base sm:text-lg font-semibold">
                     {classData.grade_min === classData.grade_max 
                       ? `Grade ${classData.grade_min}` 
-                      : `Grades ${classData.grade_min}-${classData.grade_max}`
+                      : `${classData.grade_min}-${classData.grade_max}`
                     }
                   </p>
                 </div>
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-sm text-muted-foreground">Monthly Fee</p>
-                  <p className="text-lg font-semibold">
+                <div className="p-3 sm:p-4 rounded-lg bg-muted">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Fee</p>
+                  <p className="text-base sm:text-lg font-semibold">
                     Rs. {classData.monthly_fee_amount.toLocaleString()}
                   </p>
                 </div>
@@ -355,54 +355,54 @@ const ClassDetail = () => {
   return (
     <StudentLayout>
       <div className="section-spacing">
-        <Link to="/classes" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Classes
+        <Link to="/classes" className="inline-flex items-center text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-3 sm:mb-4">
+          <ArrowLeft className="w-4 h-4 mr-1 sm:mr-2" />
+          Back
         </Link>
 
         {/* Class Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4 sm:mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">{classData.title}</h1>
-            <p className="text-muted-foreground mt-1">{classData.description}</p>
+            <h1 className="text-lg sm:text-2xl font-bold text-foreground line-clamp-1">{classData.title}</h1>
+            <p className="text-xs sm:text-base text-muted-foreground mt-1 line-clamp-2">{classData.description}</p>
           </div>
           <Badge 
             variant="outline"
             className={cn(
-              "text-sm px-4 py-1",
+              "text-xs sm:text-sm px-2 sm:px-4 py-1 self-start sm:shrink-0",
               paymentStatus === 'PAID' && 'badge-paid',
               paymentStatus === 'PENDING' && 'badge-pending',
               paymentStatus === 'UNPAID' && 'badge-unpaid'
             )}
           >
-            {paymentStatus === 'PAID' && 'This Month: Paid'}
-            {paymentStatus === 'PENDING' && 'Payment Pending'}
-            {paymentStatus === 'UNPAID' && 'Payment Required'}
+            {paymentStatus === 'PAID' && 'Paid'}
+            {paymentStatus === 'PENDING' && 'Pending'}
+            {paymentStatus === 'UNPAID' && 'Unpaid'}
           </Badge>
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="schedule" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="schedule" className="gap-2">
-              <Calendar className="w-4 h-4 hidden sm:block" />
-              Schedule
+        <Tabs defaultValue="schedule" className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-5 h-auto">
+            <TabsTrigger value="schedule" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Schedule</span>
             </TabsTrigger>
-            <TabsTrigger value="lessons" className="gap-2">
-              <BookOpen className="w-4 h-4 hidden sm:block" />
-              Lessons
+            <TabsTrigger value="lessons" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Lessons</span>
             </TabsTrigger>
-            <TabsTrigger value="papers" className="gap-2">
-              <ClipboardList className="w-4 h-4 hidden sm:block" />
-              Papers
+            <TabsTrigger value="papers" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <ClipboardList className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Papers</span>
             </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-2">
-              <CreditCard className="w-4 h-4 hidden sm:block" />
-              Payments
+            <TabsTrigger value="payments" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Pay</span>
             </TabsTrigger>
-            <TabsTrigger value="announcements" className="gap-2">
-              <Bell className="w-4 h-4 hidden sm:block" />
-              News
+            <TabsTrigger value="announcements" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">News</span>
             </TabsTrigger>
           </TabsList>
 
@@ -532,7 +532,7 @@ const ClassDetail = () => {
                                   className="gap-1"
                                   onClick={() => window.open(lesson.youtube_url, '_blank')}
                                 >
-                                  <Youtube className="w-4 h-4 text-red-500" />
+                                  <Youtube className="w-4 h-4 text-destructive" />
                                   Watch Video
                                 </Button>
                               )}
