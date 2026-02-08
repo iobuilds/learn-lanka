@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { forwardRef, useEffect, useMemo, useState } from 'react';
 import { FileText, Download, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,11 +22,13 @@ interface Paper {
   medium: string | null;
   pdf_url: string;
   is_free: boolean;
+  download_count: number;
 }
 
 const Papers = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('PAST_PAPER');
+  const [tabInitialized, setTabInitialized] = useState(false);
 
   // Fetch papers
   const { data: papers = [], isLoading } = useQuery({
@@ -71,7 +73,7 @@ const Papers = () => {
     try {
       await supabase
         .from('papers')
-        .update({ download_count: (paper as any).download_count + 1 })
+        .update({ download_count: (paper.download_count ?? 0) + 1 })
         .eq('id', paper.id);
     } catch (e) {
       // Ignore increment errors
@@ -79,6 +81,22 @@ const Papers = () => {
     
     window.open(paper.pdf_url, '_blank');
   };
+
+  useEffect(() => {
+    if (tabInitialized) return;
+    if (!papers || papers.length === 0) return;
+
+    const hasPast = papers.some((p) => p.paper_type === 'PAST_PAPER');
+    const hasSchool = papers.some((p) => p.paper_type === 'SCHOOL_EXAM');
+    const hasModel = papers.some((p) => p.paper_type === 'MODEL_PAPER');
+
+    if (activeTab === 'PAST_PAPER' && !hasPast) {
+      if (hasSchool) setActiveTab('SCHOOL_EXAM');
+      else if (hasModel) setActiveTab('MODEL_PAPER');
+    }
+
+    setTabInitialized(true);
+  }, [activeTab, papers, tabInitialized]);
 
   // Filter papers by type
   const filteredPapers = papers.filter(p => p.paper_type === activeTab);
@@ -197,58 +215,57 @@ const Papers = () => {
 };
 
 // Year Card Component (for Past Papers)
-const YearCard = ({ 
-  year, 
-  papers, 
-  onViewPdf, 
-  hasAccess 
-}: { 
-  year: string | number; 
-  papers: Paper[]; 
-  onViewPdf: (paper: Paper) => void;
-  hasAccess: boolean;
-}) => (
-  <Card className="overflow-hidden">
-    <div className="bg-foreground text-background px-4 py-3">
-      <h3 className="font-bold text-lg text-center">{year} Past Papers</h3>
-    </div>
-    <CardContent className="p-4">
-      <div className="grid grid-cols-2 gap-4">
-        {papers.map((paper) => (
-          <div key={paper.id} className="space-y-2">
-            <p className="font-semibold text-sm text-foreground">{paper.title}</p>
-            <Button 
-              className="w-full" 
-              size="sm"
-              onClick={() => onViewPdf(paper)}
-              disabled={!paper.is_free && !hasAccess}
-            >
-              {!paper.is_free && !hasAccess ? (
-                <><Lock className="w-4 h-4 mr-2" /> Locked</>
-              ) : (
-                <><Download className="w-4 h-4 mr-2" /> View PDF</>
-              )}
-            </Button>
-          </div>
-        ))}
+const YearCard = forwardRef<
+  HTMLDivElement,
+  {
+    year: string | number;
+    papers: Paper[];
+    onViewPdf: (paper: Paper) => void;
+    hasAccess: boolean;
+  }
+>(({ year, papers, onViewPdf, hasAccess }, ref) => (
+  <div ref={ref}>
+    <Card className="overflow-hidden">
+      <div className="bg-foreground text-background px-4 py-3">
+        <h3 className="font-bold text-lg text-center">{year} Past Papers</h3>
       </div>
-    </CardContent>
-  </Card>
-);
+      <CardContent className="p-4">
+        <div className="grid grid-cols-2 gap-4">
+          {papers.map((paper) => (
+            <div key={paper.id} className="space-y-2">
+              <p className="font-semibold text-sm text-foreground">{paper.title}</p>
+              <Button
+                className="w-full"
+                size="sm"
+                onClick={() => onViewPdf(paper)}
+                disabled={!paper.is_free && !hasAccess}
+              >
+                {!paper.is_free && !hasAccess ? (
+                  <><Lock className="w-4 h-4 mr-2" /> Locked</>
+                ) : (
+                  <><Download className="w-4 h-4 mr-2" /> View PDF</>
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+));
+YearCard.displayName = 'YearCard';
 
 // Grade Card Component (for School Exams)
-const GradeCard = ({ 
-  grade, 
-  papers, 
-  onViewPdf, 
-  hasAccess 
-}: { 
-  grade: string; 
-  papers: Paper[]; 
-  onViewPdf: (paper: Paper) => void;
-  hasAccess: boolean;
-}) => {
-  // Group by term, then by school/zone
+const GradeCard = forwardRef<
+  HTMLDivElement,
+  {
+    grade: string;
+    papers: Paper[];
+    onViewPdf: (paper: Paper) => void;
+    hasAccess: boolean;
+  }
+>(({ grade, papers, onViewPdf, hasAccess }, ref) => {
+  // Group by term
   const byTerm = papers.reduce((acc, p) => {
     const term = p.term ? `Term ${p.term}` : 'Other';
     if (!acc[term]) acc[term] = [];
@@ -258,53 +275,65 @@ const GradeCard = ({
 
   const getMediumLabel = (medium: string | null) => {
     switch (medium) {
-      case 'SINHALA': return 'සිංහල';
-      case 'ENGLISH': return 'English';
-      case 'TAMIL': return 'தமிழ்';
-      default: return '';
+      case 'SINHALA':
+        return 'සිංහල';
+      case 'ENGLISH':
+        return 'English';
+      case 'TAMIL':
+        return 'தமிழ்';
+      default:
+        return '';
     }
   };
 
   return (
-    <Card className="overflow-hidden">
-      <div className="bg-foreground text-background px-4 py-3">
-        <h3 className="font-bold text-lg text-center">{grade} School Exams</h3>
-      </div>
-      <CardContent className="p-4 space-y-4">
-        {Object.entries(byTerm).map(([term, termPapers]) => (
-          <div key={term}>
-            <p className="font-medium text-sm text-muted-foreground mb-2">{term}</p>
-            <div className="space-y-2">
-              {termPapers.map((paper) => (
-                <div key={paper.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{paper.title}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {paper.school_or_zone && <span>{paper.school_or_zone}</span>}
-                      {paper.medium && <span className="text-primary">{getMediumLabel(paper.medium)}</span>}
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onViewPdf(paper)}
-                    disabled={!paper.is_free && !hasAccess}
+    <div ref={ref}>
+      <Card className="overflow-hidden">
+        <div className="bg-foreground text-background px-4 py-3">
+          <h3 className="font-bold text-lg text-center">{grade} School Exams</h3>
+        </div>
+        <CardContent className="p-4 space-y-4">
+          {Object.entries(byTerm).map(([term, termPapers]) => (
+            <div key={term}>
+              <p className="font-medium text-sm text-muted-foreground mb-2">{term}</p>
+              <div className="space-y-2">
+                {termPapers.map((paper) => (
+                  <div
+                    key={paper.id}
+                    className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
                   >
-                    {!paper.is_free && !hasAccess ? (
-                      <Lock className="w-3 h-3" />
-                    ) : (
-                      <Download className="w-3 h-3" />
-                    )}
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{paper.title}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {paper.school_or_zone && <span>{paper.school_or_zone}</span>}
+                        {paper.medium && (
+                          <span className="text-primary">{getMediumLabel(paper.medium)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onViewPdf(paper)}
+                      disabled={!paper.is_free && !hasAccess}
+                    >
+                      {!paper.is_free && !hasAccess ? (
+                        <Lock className="w-3 h-3" />
+                      ) : (
+                        <Download className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
   );
-};
+});
+GradeCard.displayName = 'GradeCard';
 
 // Single Paper Card
 const PaperCard = ({ 
