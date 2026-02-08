@@ -313,6 +313,38 @@ export type Database = {
           },
         ]
       }
+      moderator_class_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          class_id: string
+          id: string
+          moderator_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          class_id: string
+          id?: string
+          moderator_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          class_id?: string
+          id?: string
+          moderator_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderator_class_assignments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -846,6 +878,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_class: {
+        Args: { _class_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

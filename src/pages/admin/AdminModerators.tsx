@@ -7,7 +7,9 @@ import {
   CheckCircle,
   Ban,
   Loader2,
-  UserPlus
+  UserPlus,
+  BookOpen,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +19,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -34,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -45,6 +49,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { cn } from '@/lib/utils';
 import { 
@@ -54,17 +59,109 @@ import {
   UserWithDetails 
 } from '@/hooks/useAdminUsers';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const AdminModerators = () => {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [addModeratorOpen, setAddModeratorOpen] = useState(false);
   const [addSearchQuery, setAddSearchQuery] = useState('');
   const [userToRemove, setUserToRemove] = useState<UserWithDetails | null>(null);
+  const [assignClassesUser, setAssignClassesUser] = useState<UserWithDetails | null>(null);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
   const { isAdmin } = useAuth();
   const { data: users = [], isLoading, error } = useAdminUsers();
   const addModerator = useAddModeratorRole();
   const removeModerator = useRemoveModeratorRole();
+
+  // Fetch all classes
+  const { data: classes = [] } = useQuery({
+    queryKey: ['all-classes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, title, grade_min, grade_max')
+        .order('title');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch moderator assignments
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['moderator-assignments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('moderator_class_assignments')
+        .select('moderator_id, class_id');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Get assigned classes for a moderator
+  const getAssignedClasses = (userId: string) => {
+    return assignments
+      .filter(a => a.moderator_id === userId)
+      .map(a => a.class_id);
+  };
+
+  // Update assignments mutation
+  const updateAssignmentsMutation = useMutation({
+    mutationFn: async ({ userId, classIds }: { userId: string; classIds: string[] }) => {
+      // First delete all existing assignments for this moderator
+      const { error: deleteError } = await supabase
+        .from('moderator_class_assignments')
+        .delete()
+        .eq('moderator_id', userId);
+      if (deleteError) throw deleteError;
+
+      // Then insert new assignments
+      if (classIds.length > 0) {
+        const { error: insertError } = await supabase
+          .from('moderator_class_assignments')
+          .insert(classIds.map(classId => ({
+            moderator_id: userId,
+            class_id: classId,
+          })));
+        if (insertError) throw insertError;
+      }
+    },
+    onSuccess: () => {
+      toast.success('Class assignments updated!');
+      queryClient.invalidateQueries({ queryKey: ['moderator-assignments'] });
+      setAssignClassesUser(null);
+      setSelectedClasses([]);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update assignments');
+    },
+  });
+
+  const openAssignDialog = (user: UserWithDetails) => {
+    setAssignClassesUser(user);
+    setSelectedClasses(getAssignedClasses(user.id));
+  };
+
+  const toggleClassSelection = (classId: string) => {
+    setSelectedClasses(prev => 
+      prev.includes(classId)
+        ? prev.filter(id => id !== classId)
+        : [...prev, classId]
+    );
+  };
+
+  const saveAssignments = () => {
+    if (assignClassesUser) {
+      updateAssignmentsMutation.mutate({
+        userId: assignClassesUser.id,
+        classIds: selectedClasses,
+      });
+    }
+  };
 
   // Filter to show only moderators
   const moderators = users.filter(user => 
@@ -238,6 +335,7 @@ const AdminModerators = () => {
                   <TableRow>
                     <TableHead>User</TableHead>
                     <TableHead>Phone</TableHead>
+                    <TableHead>Assigned Classes</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-10"></TableHead>
@@ -263,6 +361,25 @@ const AdminModerators = () => {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm">{user.phone}</TableCell>
+                      <TableCell>
+                        {user.roles.includes('admin') ? (
+                          <span className="text-muted-foreground text-sm">All classes</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const assignedCount = getAssignedClasses(user.id).length;
+                              return assignedCount > 0 ? (
+                                <Badge variant="outline" className="gap-1">
+                                  <BookOpen className="w-3 h-3" />
+                                  {assignedCount} class{assignedCount !== 1 ? 'es' : ''}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">None assigned</span>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {user.roles.includes('admin') ? (
                           <Badge variant="destructive">Admin</Badge>
@@ -293,6 +410,11 @@ const AdminModerators = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openAssignDialog(user)}>
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                Assign Classes
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem 
                                 className="text-destructive"
                                 onClick={() => setUserToRemove(user)}
@@ -339,6 +461,63 @@ const AdminModerators = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Assign Classes Dialog */}
+      <Dialog open={!!assignClassesUser} onOpenChange={(open) => !open && setAssignClassesUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-primary" />
+              Assign Classes
+            </DialogTitle>
+            <DialogDescription>
+              Select classes for {assignClassesUser?.first_name} {assignClassesUser?.last_name} to manage
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {classes.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4">No classes available</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {classes.map((cls) => (
+                  <div
+                    key={cls.id}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                      selectedClasses.includes(cls.id)
+                        ? "bg-primary/10 border-primary"
+                        : "hover:bg-muted"
+                    )}
+                    onClick={() => toggleClassSelection(cls.id)}
+                  >
+                    <Checkbox
+                      checked={selectedClasses.includes(cls.id)}
+                      onCheckedChange={() => toggleClassSelection(cls.id)}
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{cls.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Grade {cls.grade_min === cls.grade_max ? cls.grade_min : `${cls.grade_min}-${cls.grade_max}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignClassesUser(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={saveAssignments}
+              disabled={updateAssignmentsMutation.isPending}
+            >
+              {updateAssignmentsMutation.isPending ? 'Saving...' : 'Save Assignments'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
