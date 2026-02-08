@@ -29,6 +29,9 @@ import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoupons from "./pages/admin/AdminCoupons";
+import AdminRankPapers from "./pages/admin/AdminRankPapers";
+import AdminShop from "./pages/admin/AdminShop";
+import AdminPapers from "./pages/admin/AdminPapers";
 
 import NotFound from "./pages/NotFound";
 
@@ -65,8 +68,9 @@ const App = () => (
             <Route path="/admin/classes" element={<AdminClasses />} />
             <Route path="/admin/payments" element={<AdminPayments />} />
             <Route path="/admin/coupons" element={<AdminCoupons />} />
-            <Route path="/admin/rank-papers" element={<AdminClasses />} />
-            <Route path="/admin/shop" element={<AdminClasses />} />
+            <Route path="/admin/rank-papers" element={<AdminRankPapers />} />
+            <Route path="/admin/shop" element={<AdminShop />} />
+            <Route path="/admin/papers" element={<AdminPapers />} />
             <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
 
