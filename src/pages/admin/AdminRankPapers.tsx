@@ -373,12 +373,12 @@ const AdminRankPapers = () => {
                     <Users className="w-4 h-4" />
                     Assign to Class (optional)
                   </Label>
-                  <Select value={classId} onValueChange={setClassId}>
+                  <Select value={classId || "none"} onValueChange={(val) => setClassId(val === "none" ? "" : val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="No class - available to all" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No class (public)</SelectItem>
+                      <SelectItem value="none">No class (public)</SelectItem>
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id}>{cls.title}</SelectItem>
                       ))}
