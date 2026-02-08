@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   DndContext, 
@@ -15,7 +15,7 @@ import {
   sortableKeyboardCoordinates, 
   verticalListSortingStrategy 
 } from '@dnd-kit/sortable';
-import { ArrowLeft, Plus, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import AdminLayout from '@/components/layouts/AdminLayout';
@@ -48,6 +48,8 @@ const AdminRankPaperQuestions = () => {
   const [uploadingQuestionId, setUploadingQuestionId] = useState<string | null>(null);
   const [uploadingOptionId, setUploadingOptionId] = useState<string | null>(null);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [allExpanded, setAllExpanded] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -100,16 +102,24 @@ const AdminRankPaperQuestions = () => {
     enabled: !!paperId,
   });
 
+  // Initialize expanded state when questions load
+  useEffect(() => {
+    if (questions.length > 0 && expandedIds.size === 0 && allExpanded) {
+      setExpandedIds(new Set(questions.map(q => q.id)));
+    }
+  }, [questions]);
+
   // Reorder questions mutation
   const reorderMutation = useMutation({
     mutationFn: async (reorderedQuestions: MCQQuestion[]) => {
-      const updates = reorderedQuestions.map((q, index) => 
-        supabase
+      // Execute updates sequentially to avoid race conditions
+      for (let i = 0; i < reorderedQuestions.length; i++) {
+        const { error } = await supabase
           .from('rank_mcq_questions')
-          .update({ q_no: index + 1 })
-          .eq('id', q.id)
-      );
-      await Promise.all(updates);
+          .update({ q_no: i + 1 })
+          .eq('id', reorderedQuestions[i].id);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rank-mcq-questions', paperId] });
@@ -119,6 +129,28 @@ const AdminRankPaperQuestions = () => {
       toast.error(error.message || 'Failed to reorder questions');
     },
   });
+
+  // Toggle all expanded/collapsed
+  const toggleAllExpanded = () => {
+    if (allExpanded) {
+      setExpandedIds(new Set());
+    } else {
+      setExpandedIds(new Set(questions.map(q => q.id)));
+    }
+    setAllExpanded(!allExpanded);
+  };
+
+  // Handle individual question expand/collapse
+  const handleExpandChange = (id: string, isExpanded: boolean) => {
+    const newSet = new Set(expandedIds);
+    if (isExpanded) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    setExpandedIds(newSet);
+    setAllExpanded(newSet.size === questions.length);
+  };
 
   // Add question mutation
   const addQuestionMutation = useMutation({
@@ -380,6 +412,12 @@ const AdminRankPaperQuestions = () => {
             <p className="text-muted-foreground">{paper?.title} - {questions.length} questions (drag to reorder)</p>
           </div>
           <div className="flex gap-2">
+            {questions.length > 0 && (
+              <Button variant="outline" size="sm" onClick={toggleAllExpanded}>
+                <ChevronsUpDown className="w-4 h-4 mr-2" />
+                {allExpanded ? 'Collapse All' : 'Expand All'}
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setBulkAddOpen(true)}>
               <FileText className="w-4 h-4 mr-2" />
               Bulk Add
@@ -416,11 +454,13 @@ const AdminRankPaperQuestions = () => {
               items={questions.map(q => q.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="grid gap-6">
+              <div className="grid gap-4">
                 {questions.map((question) => (
                   <SortableQuestionCard
                     key={question.id}
                     question={question}
+                    isExpanded={expandedIds.has(question.id)}
+                    onExpandChange={(isExpanded) => handleExpandChange(question.id, isExpanded)}
                     uploadingQuestionId={uploadingQuestionId}
                     uploadingOptionId={uploadingOptionId}
                     onUpdateQuestionText={(id, text) => 

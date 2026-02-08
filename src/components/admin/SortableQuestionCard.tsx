@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Check, X, Upload, Loader2, Image as ImageIcon, Type, ChevronDown, ChevronRight, Copy } from 'lucide-react';
@@ -44,6 +43,8 @@ interface MCQQuestion {
 
 interface SortableQuestionCardProps {
   question: MCQQuestion;
+  isExpanded: boolean;
+  onExpandChange: (isExpanded: boolean) => void;
   uploadingQuestionId: string | null;
   uploadingOptionId: string | null;
   onUpdateQuestionText: (id: string, text: string) => void;
@@ -58,6 +59,8 @@ interface SortableQuestionCardProps {
 
 const SortableQuestionCard = ({
   question,
+  isExpanded,
+  onExpandChange,
   uploadingQuestionId,
   uploadingOptionId,
   onUpdateQuestionText,
@@ -69,8 +72,6 @@ const SortableQuestionCard = ({
   onDuplicateQuestion,
   onImageUpload,
 }: SortableQuestionCardProps) => {
-  const [isOpen, setIsOpen] = useState(true);
-  
   const {
     attributes,
     listeners,
@@ -103,7 +104,7 @@ const SortableQuestionCard = ({
 
   return (
     <Card ref={setNodeRef} style={style} className="overflow-hidden">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Collapsible open={isExpanded} onOpenChange={onExpandChange}>
         <CardHeader className="bg-muted/50 py-2 px-4">
           <div className="flex items-center gap-2">
             <button
@@ -117,18 +118,18 @@ const SortableQuestionCard = ({
             
             <CollapsibleTrigger asChild>
               <button className="flex items-center gap-2 flex-1 text-left hover:bg-muted/50 rounded p-1 -m-1">
-                {isOpen ? (
+                {isExpanded ? (
                   <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                 ) : (
                   <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                 )}
                 <Badge variant="secondary" className="shrink-0">Q{question.q_no}</Badge>
-                {!isOpen && (
+                {!isExpanded && (
                   <span className="text-sm text-muted-foreground truncate flex-1">
                     {getQuestionPreview()}
                   </span>
                 )}
-                {!isOpen && correctAnswer && (
+                {!isExpanded && correctAnswer && (
                   <Badge variant="outline" className="text-green-600 shrink-0">
                     {correctAnswer}
                   </Badge>
