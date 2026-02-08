@@ -7,7 +7,10 @@ import {
   CheckCircle,
   Shield,
   ShieldOff,
-  Loader2
+  Loader2,
+  Trash2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,10 +58,12 @@ const AdminUsers = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   
   // Confirmation dialogs
   const [confirmAction, setConfirmAction] = useState<{
-    type: 'suspend' | 'activate' | 'add_mod' | 'remove_mod';
+    type: 'suspend' | 'activate' | 'add_mod' | 'remove_mod' | 'delete';
     user: UserWithDetails;
   } | null>(null);
 
@@ -80,6 +85,19 @@ const AdminUsers = () => {
       (roleFilter === 'student' && !user.roles.includes('moderator') && !user.roles.includes('admin'));
     return matchesSearch && matchesStatus && matchesGrade && matchesRole;
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setCurrentPage(1);
+  };
 
   const handleConfirmAction = async () => {
     if (!confirmAction) return;
@@ -129,6 +147,11 @@ const AdminUsers = () => {
         return {
           title: 'Remove Moderator Role',
           description: `Are you sure you want to remove moderator role from ${name}?`
+        };
+      case 'delete':
+        return {
+          title: 'Delete User',
+          description: `Are you sure you want to permanently delete ${name}? This action cannot be undone and will remove all their data.`
         };
     }
   };
@@ -181,7 +204,7 @@ const AdminUsers = () => {
                   className="pl-9"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={handleFilterChange(setStatusFilter)}>
                 <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -191,7 +214,7 @@ const AdminUsers = () => {
                   <SelectItem value="SUSPENDED">Suspended</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <Select value={roleFilter} onValueChange={handleFilterChange(setRoleFilter)}>
                 <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
@@ -201,7 +224,7 @@ const AdminUsers = () => {
                   <SelectItem value="student">Students Only</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={gradeFilter} onValueChange={setGradeFilter}>
+              <Select value={gradeFilter} onValueChange={handleFilterChange(setGradeFilter)}>
                 <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Grade" />
                 </SelectTrigger>
@@ -234,7 +257,7 @@ const AdminUsers = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -315,19 +338,33 @@ const AdminUsers = () => {
                               </>
                             )}
                             {!user.roles.includes('admin') && (
-                              <DropdownMenuItem 
-                                className={user.status === 'ACTIVE' ? 'text-destructive' : 'text-success'}
-                                onClick={() => setConfirmAction({ 
-                                  type: user.status === 'ACTIVE' ? 'suspend' : 'activate', 
-                                  user 
-                                })}
-                              >
-                                {user.status === 'ACTIVE' ? (
-                                  <><Ban className="w-4 h-4 mr-2" /> Suspend User</>
-                                ) : (
-                                  <><CheckCircle className="w-4 h-4 mr-2" /> Activate User</>
+                              <>
+                                <DropdownMenuItem 
+                                  className={user.status === 'ACTIVE' ? 'text-destructive' : 'text-success'}
+                                  onClick={() => setConfirmAction({ 
+                                    type: user.status === 'ACTIVE' ? 'suspend' : 'activate', 
+                                    user 
+                                  })}
+                                >
+                                  {user.status === 'ACTIVE' ? (
+                                    <><Ban className="w-4 h-4 mr-2" /> Suspend User</>
+                                  ) : (
+                                    <><CheckCircle className="w-4 h-4 mr-2" /> Activate User</>
+                                  )}
+                                </DropdownMenuItem>
+                                {isAdmin && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      className="text-destructive"
+                                      onClick={() => setConfirmAction({ type: 'delete', user })}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete User
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
-                              </DropdownMenuItem>
+                              </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -337,6 +374,60 @@ const AdminUsers = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length} users
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(p => p - 1)}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-8 h-8 p-0"
+                          onClick={() => setCurrentPage(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(p => p + 1)}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {filteredUsers.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12">

@@ -27,6 +27,8 @@ import AdminModerators from "./pages/admin/AdminModerators";
 import AdminClasses from "./pages/admin/AdminClasses";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminNotifications from "./pages/admin/AdminNotifications";
+import AdminCoupons from "./pages/admin/AdminCoupons";
 
 import NotFound from "./pages/NotFound";
 
@@ -62,10 +64,10 @@ const App = () => (
             <Route path="/admin/moderators" element={<AdminModerators />} />
             <Route path="/admin/classes" element={<AdminClasses />} />
             <Route path="/admin/payments" element={<AdminPayments />} />
-            <Route path="/admin/coupons" element={<AdminPayments />} />
+            <Route path="/admin/coupons" element={<AdminCoupons />} />
             <Route path="/admin/rank-papers" element={<AdminClasses />} />
             <Route path="/admin/shop" element={<AdminClasses />} />
-            <Route path="/admin/notifications" element={<AdminSettings />} />
+            <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
 
             {/* Catch-all */}
