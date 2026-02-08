@@ -16,7 +16,9 @@ import {
   ListOrdered,
   Calendar,
   Lock,
-  Unlock
+  Unlock,
+  Search,
+  Copy
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +99,7 @@ const AdminRankPapers = () => {
   const [reviewDialog, setReviewDialog] = useState<RankPaper | null>(null);
   const [reviewVideoUrl, setReviewVideoUrl] = useState('');
   const [editingPaper, setEditingPaper] = useState<RankPaper | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Form state
   const [title, setTitle] = useState('');
@@ -250,6 +253,33 @@ const AdminRankPapers = () => {
     },
   });
 
+  // Duplicate paper mutation
+  const duplicateMutation = useMutation({
+    mutationFn: async (paper: RankPaper) => {
+      const { error } = await supabase
+        .from('rank_papers')
+        .insert({
+          title: `${paper.title} (Copy)`,
+          grade: paper.grade,
+          time_limit_minutes: paper.time_limit_minutes,
+          has_mcq: paper.has_mcq,
+          has_short_essay: paper.has_short_essay,
+          has_essay: paper.has_essay,
+          fee_amount: paper.fee_amount,
+          class_id: paper.class_id,
+          publish_status: 'DRAFT',
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Paper duplicated!');
+      queryClient.invalidateQueries({ queryKey: ['admin-rank-papers'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to duplicate paper');
+    },
+  });
+
   const resetForm = () => {
     setTitle('');
     setGrade('');
@@ -297,6 +327,17 @@ const AdminRankPapers = () => {
     }
   };
 
+  // Filter papers by search query
+  const filteredPapers = papers.filter(paper => {
+    if (!searchQuery.trim()) return true;
+    const search = searchQuery.toLowerCase();
+    return (
+      paper.title.toLowerCase().includes(search) ||
+      `grade ${paper.grade}`.includes(search) ||
+      paper.publish_status.toLowerCase().includes(search)
+    );
+  });
+
   if (isLoading) {
     return (
       <AdminLayout>
@@ -316,10 +357,21 @@ const AdminRankPapers = () => {
             <h1 className="text-2xl font-bold text-foreground">Rank Papers</h1>
             <p className="text-muted-foreground">Manage timed exams and quizzes</p>
           </div>
-          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create Paper
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search papers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-64"
+              />
+            </div>
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Paper
+            </Button>
+          </div>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) {
@@ -483,7 +535,7 @@ const AdminRankPapers = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {papers.map((paper) => (
+                {filteredPapers.map((paper) => (
                   <TableRow key={paper.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -585,6 +637,10 @@ const AdminRankPapers = () => {
                             <Edit className="w-4 h-4 mr-2" />
                             Edit Paper
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => duplicateMutation.mutate(paper)}>
+                            <Copy className="w-4 h-4 mr-2" />
+                            Duplicate Paper
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
                             className="text-destructive"
@@ -601,11 +657,15 @@ const AdminRankPapers = () => {
               </TableBody>
             </Table>
 
-            {papers.length === 0 && (
+            {filteredPapers.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12">
                 <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="font-medium text-foreground mb-2">No rank papers</h3>
-                <p className="text-sm text-muted-foreground">Create your first exam paper</p>
+                <h3 className="font-medium text-foreground mb-2">
+                  {searchQuery ? 'No papers found' : 'No rank papers'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {searchQuery ? 'Try a different search term' : 'Create your first exam paper'}
+                </p>
               </div>
             )}
           </CardContent>
