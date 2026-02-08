@@ -43,6 +43,7 @@ import AdminRankPaperQuestions from "./pages/admin/AdminRankPaperQuestions";
 import AdminRankPaperAttempts from "./pages/admin/AdminRankPaperAttempts";
 import AdminShop from "./pages/admin/AdminShop";
 import AdminPapers from "./pages/admin/AdminPapers";
+import AdminBulkSms from "./pages/admin/AdminBulkSms";
 
 import NotFound from "./pages/NotFound";
 
@@ -94,6 +95,7 @@ const App = () => (
               <Route path="/admin/shop" element={<ProtectedRoute requireModerator><AdminShop /></ProtectedRoute>} />
               <Route path="/admin/papers" element={<ProtectedRoute requireModerator><AdminPapers /></ProtectedRoute>} />
               <Route path="/admin/notifications" element={<ProtectedRoute requireModerator><AdminNotifications /></ProtectedRoute>} />
+              <Route path="/admin/bulk-sms" element={<ProtectedRoute requireModerator><AdminBulkSms /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
 
               {/* Catch-all */}

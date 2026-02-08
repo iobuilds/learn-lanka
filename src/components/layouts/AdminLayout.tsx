@@ -16,7 +16,8 @@ import {
   ShoppingBag,
   Award,
   Shield,
-  Loader2
+  Loader2,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ const navItems = [
   { path: '/admin/papers', label: 'Papers', icon: FileText },
   { path: '/admin/shop', label: 'Shop', icon: ShoppingBag },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
+  { path: '/admin/bulk-sms', label: 'Bulk SMS', icon: MessageSquare },
   { path: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
