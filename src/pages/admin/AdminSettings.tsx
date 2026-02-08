@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import BankAccountManager from '@/components/admin/BankAccountManager';
 
 const AdminSettings = () => {
   const [siteName, setSiteName] = useState('ICT Academy');
@@ -191,62 +192,7 @@ const AdminSettings = () => {
 
           {/* Bank Accounts Tab */}
           <TabsContent value="bank" className="space-y-6">
-            <Card className="card-elevated">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />
-                  Bank Accounts
-                </CardTitle>
-                <CardDescription>Manage bank accounts for payments</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 rounded-lg border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Bank of Ceylon</h4>
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Account: </span>
-                      <span className="font-mono">12345678901234</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Branch: </span>
-                      <span>Colombo Main</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Name: </span>
-                      <span>ICT Academy</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-lg border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Commercial Bank</h4>
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Account: </span>
-                      <span className="font-mono">98765432109876</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Branch: </span>
-                      <span>Kollupitiya</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Name: </span>
-                      <span>ICT Academy</span>
-                    </div>
-                  </div>
-                </div>
-
-                <Button variant="outline" className="w-full">
-                  Add Bank Account
-                </Button>
-              </CardContent>
-            </Card>
+            <BankAccountManager />
           </TabsContent>
         </Tabs>
       </div>

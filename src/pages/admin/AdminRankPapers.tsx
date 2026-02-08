@@ -13,7 +13,10 @@ import {
   CheckCircle,
   PlayCircle,
   Youtube,
-  ListOrdered
+  ListOrdered,
+  Calendar,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +78,8 @@ interface RankPaper {
   fee_amount: number | null;
   essay_pdf_url: string | null;
   review_video_url: string | null;
+  unlock_at: string | null;
+  lock_at: string | null;
   created_at: string;
 }
 
@@ -95,6 +100,8 @@ const AdminRankPapers = () => {
   const [hasShortEssay, setHasShortEssay] = useState(false);
   const [hasEssay, setHasEssay] = useState(false);
   const [feeAmount, setFeeAmount] = useState('');
+  const [unlockAt, setUnlockAt] = useState('');
+  const [lockAt, setLockAt] = useState('');
 
   // Fetch rank papers
   const { data: papers = [], isLoading } = useQuery({
@@ -137,6 +144,8 @@ const AdminRankPapers = () => {
         has_short_essay: hasShortEssay,
         has_essay: hasEssay,
         fee_amount: feeAmount ? parseInt(feeAmount) : null,
+        unlock_at: unlockAt ? new Date(unlockAt).toISOString() : null,
+        lock_at: lockAt ? new Date(lockAt).toISOString() : null,
       };
 
       if (editingPaper) {
@@ -228,7 +237,16 @@ const AdminRankPapers = () => {
     setHasShortEssay(false);
     setHasEssay(false);
     setFeeAmount('');
+    setUnlockAt('');
+    setLockAt('');
     setEditingPaper(null);
+  };
+
+  // Helper to format datetime-local value
+  const formatDateTimeLocal = (isoString: string | null) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toISOString().slice(0, 16);
   };
 
   const openEditDialog = (paper: RankPaper) => {
@@ -240,6 +258,8 @@ const AdminRankPapers = () => {
     setHasShortEssay(paper.has_short_essay);
     setHasEssay(paper.has_essay);
     setFeeAmount(paper.fee_amount?.toString() || '');
+    setUnlockAt(formatDateTimeLocal(paper.unlock_at));
+    setLockAt(formatDateTimeLocal(paper.lock_at));
     setIsDialogOpen(true);
   };
 
@@ -334,6 +354,42 @@ const AdminRankPapers = () => {
                     onChange={(e) => setFeeAmount(e.target.value)}
                   />
                 </div>
+
+                {/* Unlock/Lock Time Section */}
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Access Time Window (optional)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Set when students can access this paper. Leave empty for no restrictions.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="unlockAt" className="text-xs flex items-center gap-1">
+                        <Unlock className="w-3 h-3" /> Unlock At
+                      </Label>
+                      <Input 
+                        id="unlockAt" 
+                        type="datetime-local"
+                        value={unlockAt}
+                        onChange={(e) => setUnlockAt(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lockAt" className="text-xs flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> Lock At
+                      </Label>
+                      <Input 
+                        id="lockAt" 
+                        type="datetime-local"
+                        value={lockAt}
+                        onChange={(e) => setLockAt(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   <Label>Paper Sections</Label>
                   <div className="space-y-2">
@@ -389,12 +445,20 @@ const AdminRankPapers = () => {
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                           <FileText className="w-4 h-4 text-primary" />
                         </div>
-                        <div>
+                        <div className="space-y-1">
                           <p className="font-medium">{paper.title}</p>
                           {paper.review_video_url && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Youtube className="w-3 h-3" />
                               Review video added
+                            </div>
+                          )}
+                          {(paper.unlock_at || paper.lock_at) && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Calendar className="w-3 h-3" />
+                              {paper.unlock_at && format(new Date(paper.unlock_at), 'MMM d, HH:mm')}
+                              {paper.unlock_at && paper.lock_at && ' - '}
+                              {paper.lock_at && format(new Date(paper.lock_at), 'MMM d, HH:mm')}
                             </div>
                           )}
                         </div>

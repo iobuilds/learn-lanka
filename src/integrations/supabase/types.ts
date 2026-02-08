@@ -769,10 +769,12 @@ export type Database = {
           has_mcq: boolean
           has_short_essay: boolean
           id: string
+          lock_at: string | null
           publish_status: string
           review_video_url: string | null
           time_limit_minutes: number
           title: string
+          unlock_at: string | null
         }
         Insert: {
           class_id?: string | null
@@ -785,10 +787,12 @@ export type Database = {
           has_mcq?: boolean
           has_short_essay?: boolean
           id?: string
+          lock_at?: string | null
           publish_status?: string
           review_video_url?: string | null
           time_limit_minutes?: number
           title: string
+          unlock_at?: string | null
         }
         Update: {
           class_id?: string | null
@@ -801,10 +805,12 @@ export type Database = {
           has_mcq?: boolean
           has_short_essay?: boolean
           id?: string
+          lock_at?: string | null
           publish_status?: string
           review_video_url?: string | null
           time_limit_minutes?: number
           title?: string
+          unlock_at?: string | null
         }
         Relationships: [
           {
