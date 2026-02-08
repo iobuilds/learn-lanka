@@ -161,6 +161,49 @@ const AdminRankPaperQuestions = () => {
     },
   });
 
+  // Duplicate question mutation
+  const duplicateQuestionMutation = useMutation({
+    mutationFn: async (sourceQuestion: MCQQuestion) => {
+      const newQNo = questions.length + 1;
+      
+      const { data: question, error: qError } = await supabase
+        .from('rank_mcq_questions')
+        .insert({
+          rank_paper_id: paperId,
+          q_no: newQNo,
+          question_text: sourceQuestion.question_text,
+          question_image_url: sourceQuestion.question_image_url,
+        })
+        .select()
+        .single();
+      
+      if (qError) throw qError;
+
+      const optionsToInsert = sourceQuestion.options.map((opt) => ({
+        question_id: question.id,
+        option_no: opt.option_no,
+        option_text: opt.option_text,
+        option_image_url: opt.option_image_url,
+        is_correct: opt.is_correct,
+      }));
+
+      const { error: oError } = await supabase
+        .from('rank_mcq_options')
+        .insert(optionsToInsert);
+      
+      if (oError) throw oError;
+
+      return question;
+    },
+    onSuccess: () => {
+      toast.success('Question duplicated!');
+      queryClient.invalidateQueries({ queryKey: ['rank-mcq-questions', paperId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to add question');
+    },
+  });
+
   // Update question text mutation
   const updateQuestionTextMutation = useMutation({
     mutationFn: async ({ id, question_text }: { id: string; question_text: string }) => {
@@ -396,6 +439,7 @@ const AdminRankPaperQuestions = () => {
                       setCorrectAnswerMutation.mutate({ questionId, optionId })
                     }
                     onDeleteQuestion={(id) => deleteQuestionMutation.mutate(id)}
+                    onDuplicateQuestion={(q) => duplicateQuestionMutation.mutate(q)}
                     onImageUpload={handleImageUpload}
                   />
                 ))}
