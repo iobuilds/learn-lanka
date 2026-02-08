@@ -16,6 +16,7 @@ import Classes from "./pages/Classes";
 import ClassDetail from "./pages/ClassDetail";
 import RankPapers from "./pages/RankPapers";
 import RankPaperAttempt from "./pages/RankPaperAttempt";
+import Papers from "./pages/Papers";
 import Shop from "./pages/Shop";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/classes/:id" element={<ClassDetail />} />
             <Route path="/rank-papers" element={<RankPapers />} />
             <Route path="/rank-papers/:id/attempt" element={<RankPaperAttempt />} />
+            <Route path="/papers" element={<Papers />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/profile" element={<Profile />} />
