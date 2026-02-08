@@ -158,6 +158,28 @@ const AdminPayments = () => {
     setDialogOpen(true);
   };
 
+  const handleDownloadSlip = async (payment: Payment) => {
+    if (!payment.slip_url) return;
+    
+    try {
+      // Extract path from the full URL
+      const url = new URL(payment.slip_url);
+      const pathMatch = url.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/payment-slips\/(.+)/);
+      
+      if (pathMatch) {
+        const filePath = decodeURIComponent(pathMatch[1]);
+        const { data, error } = await supabase.storage
+          .from('payment-slips')
+          .createSignedUrl(filePath, 300); // 5 min expiry
+
+        if (error) throw error;
+        window.open(data.signedUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error downloading slip:', error);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -304,11 +326,9 @@ const AdminPayments = () => {
                                   View & Verify
                                 </DropdownMenuItem>
                                 {payment.slip_url && (
-                                  <DropdownMenuItem asChild>
-                                    <a href={payment.slip_url} download>
-                                      <Download className="w-4 h-4 mr-2" />
-                                      Download Slip
-                                    </a>
+                                  <DropdownMenuItem onClick={() => handleDownloadSlip(payment)}>
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download Slip
                                   </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
