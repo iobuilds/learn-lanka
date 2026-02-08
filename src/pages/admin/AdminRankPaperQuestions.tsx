@@ -102,6 +102,9 @@ const AdminRankPaperQuestions = () => {
     enabled: !!paperId,
   });
 
+  // Compute next q_no safely (handles gaps after deletes)
+  const nextQNo = (questions.reduce((max, q) => Math.max(max, q.q_no), 0) || 0) + 1;
+
   // Initialize expanded state when questions load
   useEffect(() => {
     if (questions.length > 0 && expandedIds.size === 0 && allExpanded) {
@@ -156,7 +159,7 @@ const AdminRankPaperQuestions = () => {
   // Add question mutation
   const addQuestionMutation = useMutation({
     mutationFn: async () => {
-      const newQNo = questions.length + 1;
+      const newQNo = nextQNo;
       
       const { data: question, error: qError } = await supabase
         .from('rank_mcq_questions')
@@ -197,7 +200,7 @@ const AdminRankPaperQuestions = () => {
   // Duplicate question mutation
   const duplicateQuestionMutation = useMutation({
     mutationFn: async (sourceQuestion: MCQQuestion) => {
-      const newQNo = questions.length + 1;
+      const newQNo = nextQNo;
       
       const { data: question, error: qError } = await supabase
         .from('rank_mcq_questions')
@@ -511,7 +514,7 @@ const AdminRankPaperQuestions = () => {
       {/* Bulk Add Dialog */}
       <BulkAddQuestionsDialog
         paperId={paperId || ''}
-        startingQNo={questions.length + 1}
+        startingQNo={nextQNo}
         open={bulkAddOpen}
         onOpenChange={setBulkAddOpen}
       />
