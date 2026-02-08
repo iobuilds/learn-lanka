@@ -12,7 +12,8 @@ import {
   Youtube,
   FileText,
   Upload as UploadIcon,
-  X
+  X,
+  ClipboardList
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import ClassPapersManager from '@/components/admin/ClassPapersManager';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -432,6 +434,10 @@ const AdminClassContent = () => {
                 <BookOpen className="w-4 h-4" />
                 Lessons
               </TabsTrigger>
+              <TabsTrigger value="papers" className="gap-2">
+                <ClipboardList className="w-4 h-4" />
+                Papers
+              </TabsTrigger>
             </TabsList>
 
             {/* Schedule Tab */}
@@ -587,6 +593,11 @@ const AdminClassContent = () => {
                   })}
                 </div>
               )}
+            </TabsContent>
+
+            {/* Papers Tab */}
+            <TabsContent value="papers" className="space-y-4">
+              <ClassPapersManager classId={id!} classTitle={classData.title} />
             </TabsContent>
           </Tabs>
         )}
