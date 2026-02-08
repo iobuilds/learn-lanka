@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -74,6 +74,7 @@ const AdminShop = () => {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ShopProduct | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -123,6 +124,35 @@ const AdminShop = () => {
     },
   });
 
+  // Update product mutation
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingProduct) return;
+      const { error } = await supabase
+        .from('shop_products')
+        .update({
+          title,
+          description: description || null,
+          type: productType,
+          price_soft: priceSoft ? parseInt(priceSoft) : null,
+          price_printed: pricePrinted ? parseInt(pricePrinted) : null,
+          price_both: priceBoth ? parseInt(priceBoth) : null,
+        })
+        .eq('id', editingProduct.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Product updated!');
+      queryClient.invalidateQueries({ queryKey: ['admin-shop-products'] });
+      setIsDialogOpen(false);
+      setEditingProduct(null);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update product');
+    },
+  });
+
   // Toggle active status
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -169,6 +199,31 @@ const AdminShop = () => {
     setPriceBoth('');
   };
 
+  const openEditDialog = (product: ShopProduct) => {
+    setEditingProduct(product);
+    setTitle(product.title);
+    setDescription(product.description || '');
+    setProductType(product.type);
+    setPriceSoft(product.price_soft?.toString() || '');
+    setPricePrinted(product.price_printed?.toString() || '');
+    setPriceBoth(product.price_both?.toString() || '');
+    setIsDialogOpen(true);
+  };
+
+  const openCreateDialog = () => {
+    setEditingProduct(null);
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (editingProduct) {
+      updateMutation.mutate();
+    } else {
+      createMutation.mutate();
+    }
+  };
+
   const getProductTypeLabel = (type: string) => {
     switch (type) {
       case 'BOOK': return 'Book';
@@ -177,6 +232,8 @@ const AdminShop = () => {
       default: return type;
     }
   };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   if (isLoading) {
     return (
@@ -197,103 +254,10 @@ const AdminShop = () => {
             <h1 className="text-2xl font-bold text-foreground">Shop Products</h1>
             <p className="text-muted-foreground">Manage books, notes, and materials</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Add Product</DialogTitle>
-                <DialogDescription>
-                  Add a new product to the shop
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Product Title</Label>
-                  <Input 
-                    id="title" 
-                    placeholder="e.g., A/L ICT Complete Notes" 
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    placeholder="Product description..."
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Product Type</Label>
-                  <Select value={productType} onValueChange={setProductType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BOOK">Book</SelectItem>
-                      <SelectItem value="NOTES">Notes</SelectItem>
-                      <SelectItem value="PAPERS">Papers</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-3">
-                  <Label>Pricing (leave empty if not available)</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> Soft Copy
-                      </Label>
-                      <Input 
-                        type="number"
-                        placeholder="Rs."
-                        value={priceSoft}
-                        onChange={(e) => setPriceSoft(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs flex items-center gap-1">
-                        <Printer className="w-3 h-3" /> Printed
-                      </Label>
-                      <Input 
-                        type="number"
-                        placeholder="Rs."
-                        value={pricePrinted}
-                        onChange={(e) => setPricePrinted(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs flex items-center gap-1">
-                        <Package className="w-3 h-3" /> Both
-                      </Label>
-                      <Input 
-                        type="number"
-                        placeholder="Rs."
-                        value={priceBoth}
-                        onChange={(e) => setPriceBoth(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button 
-                  onClick={() => createMutation.mutate()}
-                  disabled={createMutation.isPending || !title}
-                >
-                  {createMutation.isPending ? 'Adding...' : 'Add Product'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={openCreateDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Product
+          </Button>
         </div>
 
         {/* Products Table */}
@@ -361,7 +325,7 @@ const AdminShop = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(product)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
@@ -391,6 +355,105 @@ const AdminShop = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) {
+          setEditingProduct(null);
+          resetForm();
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingProduct ? 'Edit Product' : 'Add Product'}</DialogTitle>
+            <DialogDescription>
+              {editingProduct ? 'Update product details' : 'Add a new product to the shop'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Product Title</Label>
+              <Input 
+                id="title" 
+                placeholder="e.g., A/L ICT Complete Notes" 
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea 
+                id="description" 
+                placeholder="Product description..."
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Product Type</Label>
+              <Select value={productType} onValueChange={setProductType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BOOK">Book</SelectItem>
+                  <SelectItem value="NOTES">Notes</SelectItem>
+                  <SelectItem value="PAPERS">Papers</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-3">
+              <Label>Pricing (leave empty if not available)</Label>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Soft Copy
+                  </Label>
+                  <Input 
+                    type="number"
+                    placeholder="Rs."
+                    value={priceSoft}
+                    onChange={(e) => setPriceSoft(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Printer className="w-3 h-3" /> Printed
+                  </Label>
+                  <Input 
+                    type="number"
+                    placeholder="Rs."
+                    value={pricePrinted}
+                    onChange={(e) => setPricePrinted(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Package className="w-3 h-3" /> Both
+                  </Label>
+                  <Input 
+                    type="number"
+                    placeholder="Rs."
+                    value={priceBoth}
+                    onChange={(e) => setPriceBoth(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleSubmit}
+              disabled={isPending || !title}
+            >
+              {isPending ? 'Saving...' : editingProduct ? 'Save Changes' : 'Add Product'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
