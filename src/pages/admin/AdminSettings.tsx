@@ -7,7 +7,8 @@ import {
   Upload,
   Save,
   Globe,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import BankAccountManager from '@/components/admin/BankAccountManager';
-
+import DatabaseBackupRestore from '@/components/admin/DatabaseBackupRestore';
 const AdminSettings = () => {
   const [siteName, setSiteName] = useState('ICT Academy');
   const [contactPhone, setContactPhone] = useState('0771112233');
@@ -39,11 +40,12 @@ const AdminSettings = () => {
         </div>
 
         <Tabs defaultValue="branding" className="space-y-6">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="features">Features</TabsTrigger>
             <TabsTrigger value="contact">Contact</TabsTrigger>
             <TabsTrigger value="bank">Bank Accounts</TabsTrigger>
+            <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
           </TabsList>
 
           {/* Branding Tab */}
@@ -193,6 +195,11 @@ const AdminSettings = () => {
           {/* Bank Accounts Tab */}
           <TabsContent value="bank" className="space-y-6">
             <BankAccountManager />
+          </TabsContent>
+
+          {/* Backup & Restore Tab */}
+          <TabsContent value="backup" className="space-y-6">
+            <DatabaseBackupRestore />
           </TabsContent>
         </Tabs>
       </div>
