@@ -556,7 +556,7 @@ const ClassDetail = () => {
           {/* Papers Tab */}
           <TabsContent value="papers" className="space-y-4">
             <h2 className="text-lg font-semibold">Practice Papers</h2>
-            <ClassPapersList classId={id!} />
+            <ClassPapersList classId={id!} isPaid={isPaid} />
           </TabsContent>
 
           {/* Payments Tab */}

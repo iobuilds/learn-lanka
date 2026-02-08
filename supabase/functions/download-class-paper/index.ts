@@ -37,7 +37,7 @@ serve(async (req) => {
       );
     }
 
-    // Get user profile for name only (not phone for class papers)
+    // Get user profile for name only
     const { data: profile } = await supabaseClient
       .from("profiles")
       .select("first_name, last_name")
@@ -74,10 +74,9 @@ serve(async (req) => {
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     
     const pages = pdfDoc.getPages();
-    // Name only watermark for class papers
     const watermarkText = userName;
     
-    // Add watermark to each page
+    // Add watermarks to each page
     for (const page of pages) {
       const { width, height } = page.getSize();
       const fontSize = 10;
@@ -93,16 +92,46 @@ serve(async (req) => {
         opacity: 0.5,
       });
 
-      // Diagonal center watermark (subtle)
-      const centerFontSize = 24;
+      // Top left watermark
       page.drawText(watermarkText, {
-        x: width / 2 - 100,
-        y: height / 2,
-        size: centerFontSize,
+        x: 20,
+        y: height - 25,
+        size: fontSize,
         font: helveticaFont,
-        color: rgb(0.8, 0.8, 0.8),
-        opacity: 0.15,
-        rotate: { angle: 45, type: 'degrees' as const },
+        color: rgb(0.5, 0.5, 0.5),
+        opacity: 0.5,
+      });
+
+      // Multiple diagonal watermarks across the page
+      const centerFontSize = 20;
+      const diagonalPositions = [
+        { x: width * 0.2, y: height * 0.75 },
+        { x: width * 0.5, y: height * 0.5 },
+        { x: width * 0.8, y: height * 0.25 },
+        { x: width * 0.3, y: height * 0.3 },
+        { x: width * 0.7, y: height * 0.7 },
+      ];
+
+      for (const pos of diagonalPositions) {
+        page.drawText(watermarkText, {
+          x: pos.x - 50,
+          y: pos.y,
+          size: centerFontSize,
+          font: helveticaFont,
+          color: rgb(0.85, 0.85, 0.85),
+          opacity: 0.12,
+          rotate: { angle: 45, type: 'degrees' as const },
+        });
+      }
+
+      // Bottom center watermark
+      page.drawText(watermarkText, {
+        x: (width - textWidth) / 2,
+        y: 15,
+        size: fontSize,
+        font: helveticaFont,
+        color: rgb(0.5, 0.5, 0.5),
+        opacity: 0.4,
       });
     }
 

@@ -142,6 +142,7 @@ export type Database = {
       }
       class_papers: {
         Row: {
+          answer_pdf_url: string | null
           class_id: string
           created_at: string
           created_by: string | null
@@ -151,9 +152,11 @@ export type Database = {
           pdf_url: string
           publish_status: string
           published_at: string | null
+          review_video_url: string | null
           title: string
         }
         Insert: {
+          answer_pdf_url?: string | null
           class_id: string
           created_at?: string
           created_by?: string | null
@@ -163,9 +166,11 @@ export type Database = {
           pdf_url: string
           publish_status?: string
           published_at?: string | null
+          review_video_url?: string | null
           title: string
         }
         Update: {
+          answer_pdf_url?: string | null
           class_id?: string
           created_at?: string
           created_by?: string | null
@@ -175,6 +180,7 @@ export type Database = {
           pdf_url?: string
           publish_status?: string
           published_at?: string | null
+          review_video_url?: string | null
           title?: string
         }
         Relationships: [
