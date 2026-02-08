@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import PublicOnlyRoute from "@/components/auth/PublicOnlyRoute";
 
 // Auth Pages
 import Login from "./pages/Login";
@@ -52,41 +54,43 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public Routes */}
+            {/* Public Routes - redirect to dashboard/admin if logged in */}
             <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+            <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+            <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
 
-            {/* Student Routes */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/classes" element={<Classes />} />
-            <Route path="/classes/:id" element={<ClassDetail />} />
-            <Route path="/rank-papers" element={<RankPapers />} />
-            <Route path="/rank-papers/:id" element={<RankPaperDetail />} />
-            <Route path="/rank-papers/:id/attempt" element={<RankPaperAttempt />} />
-            <Route path="/rank-papers/:id/results" element={<RankPaperResults />} />
-            <Route path="/rank-papers/:id/leaderboard" element={<RankPaperLeaderboard />} />
+            {/* Papers - accessible without login (for free papers only) */}
             <Route path="/papers" element={<Papers />} />
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/profile" element={<Profile />} />
 
-            {/* Admin Routes */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/moderators" element={<AdminModerators />} />
-            <Route path="/admin/classes" element={<AdminClasses />} />
-            <Route path="/admin/classes/:id/content" element={<AdminClassContent />} />
-            <Route path="/admin/payments" element={<AdminPayments />} />
-            <Route path="/admin/coupons" element={<AdminCoupons />} />
-            <Route path="/admin/rank-papers" element={<AdminRankPapers />} />
-            <Route path="/admin/rank-papers/:paperId/questions" element={<AdminRankPaperQuestions />} />
-            <Route path="/admin/rank-papers/:paperId/attempts" element={<AdminRankPaperAttempts />} />
-            <Route path="/admin/shop" element={<AdminShop />} />
-            <Route path="/admin/papers" element={<AdminPapers />} />
-            <Route path="/admin/notifications" element={<AdminNotifications />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
+            {/* Protected Student Routes */}
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/classes" element={<ProtectedRoute><Classes /></ProtectedRoute>} />
+            <Route path="/classes/:id" element={<ProtectedRoute><ClassDetail /></ProtectedRoute>} />
+            <Route path="/rank-papers" element={<ProtectedRoute><RankPapers /></ProtectedRoute>} />
+            <Route path="/rank-papers/:id" element={<ProtectedRoute><RankPaperDetail /></ProtectedRoute>} />
+            <Route path="/rank-papers/:id/attempt" element={<ProtectedRoute><RankPaperAttempt /></ProtectedRoute>} />
+            <Route path="/rank-papers/:id/results" element={<ProtectedRoute><RankPaperResults /></ProtectedRoute>} />
+            <Route path="/rank-papers/:id/leaderboard" element={<ProtectedRoute><RankPaperLeaderboard /></ProtectedRoute>} />
+            <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+
+            {/* Protected Admin Routes */}
+            <Route path="/admin" element={<ProtectedRoute requireModerator><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/moderators" element={<ProtectedRoute requireAdmin><AdminModerators /></ProtectedRoute>} />
+            <Route path="/admin/classes" element={<ProtectedRoute requireModerator><AdminClasses /></ProtectedRoute>} />
+            <Route path="/admin/classes/:id/content" element={<ProtectedRoute requireModerator><AdminClassContent /></ProtectedRoute>} />
+            <Route path="/admin/payments" element={<ProtectedRoute requireModerator><AdminPayments /></ProtectedRoute>} />
+            <Route path="/admin/coupons" element={<ProtectedRoute requireModerator><AdminCoupons /></ProtectedRoute>} />
+            <Route path="/admin/rank-papers" element={<ProtectedRoute requireModerator><AdminRankPapers /></ProtectedRoute>} />
+            <Route path="/admin/rank-papers/:paperId/questions" element={<ProtectedRoute requireModerator><AdminRankPaperQuestions /></ProtectedRoute>} />
+            <Route path="/admin/rank-papers/:paperId/attempts" element={<ProtectedRoute requireModerator><AdminRankPaperAttempts /></ProtectedRoute>} />
+            <Route path="/admin/shop" element={<ProtectedRoute requireModerator><AdminShop /></ProtectedRoute>} />
+            <Route path="/admin/papers" element={<ProtectedRoute requireModerator><AdminPapers /></ProtectedRoute>} />
+            <Route path="/admin/notifications" element={<ProtectedRoute requireModerator><AdminNotifications /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
