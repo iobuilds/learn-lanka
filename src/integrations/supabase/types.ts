@@ -1004,6 +1004,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_templates: {
+        Row: {
+          description: string | null
+          id: string
+          is_active: boolean
+          template_body: string
+          template_key: string
+          template_name: string
+          updated_at: string
+          updated_by: string | null
+          variables: string[] | null
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          template_body: string
+          template_key: string
+          template_name: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: string[] | null
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          template_body?: string
+          template_key?: string
+          template_name?: string
+          updated_at?: string
+          updated_by?: string | null
+          variables?: string[] | null
+        }
+        Relationships: []
+      }
       user_notification_reads: {
         Row: {
           id: string

@@ -8,7 +8,8 @@ import {
   Save,
   Globe,
   Image as ImageIcon,
-  Database
+  Database,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import BankAccountManager from '@/components/admin/BankAccountManager';
 import DatabaseBackupRestore from '@/components/admin/DatabaseBackupRestore';
+import SmsTemplatesManager from '@/components/admin/SmsTemplatesManager';
+
 const AdminSettings = () => {
   const [siteName, setSiteName] = useState('ICT Academy');
   const [contactPhone, setContactPhone] = useState('0771112233');
@@ -45,6 +48,7 @@ const AdminSettings = () => {
             <TabsTrigger value="features">Features</TabsTrigger>
             <TabsTrigger value="contact">Contact</TabsTrigger>
             <TabsTrigger value="bank">Bank Accounts</TabsTrigger>
+            <TabsTrigger value="sms">SMS Templates</TabsTrigger>
             <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
           </TabsList>
 
@@ -195,6 +199,11 @@ const AdminSettings = () => {
           {/* Bank Accounts Tab */}
           <TabsContent value="bank" className="space-y-6">
             <BankAccountManager />
+          </TabsContent>
+
+          {/* SMS Templates Tab */}
+          <TabsContent value="sms" className="space-y-6">
+            <SmsTemplatesManager />
           </TabsContent>
 
           {/* Backup & Restore Tab */}
