@@ -9,7 +9,8 @@ import {
   Check, 
   Type,
   Upload,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import BulkAddQuestionsDialog from '@/components/admin/BulkAddQuestionsDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -45,6 +47,7 @@ const AdminRankPaperQuestions = () => {
   const queryClient = useQueryClient();
   const [uploadingQuestionId, setUploadingQuestionId] = useState<string | null>(null);
   const [uploadingOptionId, setUploadingOptionId] = useState<string | null>(null);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
 
   // Fetch paper details
   const { data: paper } = useQuery({
@@ -293,14 +296,20 @@ const AdminRankPaperQuestions = () => {
             <h1 className="text-2xl font-bold text-foreground">Manage Questions</h1>
             <p className="text-muted-foreground">{paper?.title} - {questions.length} questions</p>
           </div>
-          <Button onClick={() => addQuestionMutation.mutate()} disabled={addQuestionMutation.isPending}>
-            {addQuestionMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4 mr-2" />
-            )}
-            Add Question
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setBulkAddOpen(true)}>
+              <FileText className="w-4 h-4 mr-2" />
+              Bulk Add
+            </Button>
+            <Button onClick={() => addQuestionMutation.mutate()} disabled={addQuestionMutation.isPending}>
+              {addQuestionMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4 mr-2" />
+              )}
+              Add One
+            </Button>
+          </div>
         </div>
 
         {/* Questions */}
@@ -523,6 +532,14 @@ const AdminRankPaperQuestions = () => {
           </div>
         )}
       </div>
+
+      {/* Bulk Add Dialog */}
+      <BulkAddQuestionsDialog
+        paperId={paperId || ''}
+        startingQNo={questions.length + 1}
+        open={bulkAddOpen}
+        onOpenChange={setBulkAddOpen}
+      />
     </AdminLayout>
   );
 };
