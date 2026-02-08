@@ -205,8 +205,8 @@ const RankPaperResults = () => {
               </div>
             )}
 
-            {/* MCQ Score */}
-            {paper.has_mcq && (
+            {/* MCQ Score - Only show after admin releases results */}
+            {paper.has_mcq && marks?.published_at && (
               <div className="p-6 rounded-xl bg-muted/50">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-muted-foreground">MCQ Score</span>
@@ -272,8 +272,8 @@ const RankPaperResults = () => {
               </div>
             )}
 
-            {/* Review Video Link */}
-            {paper.review_video_url && paper.publish_status === 'CLOSED' && (
+            {/* Review Video - Only show after results published */}
+            {marks?.published_at && paper.review_video_url && (
               <a 
                 href={paper.review_video_url}
                 target="_blank"
@@ -295,52 +295,6 @@ const RankPaperResults = () => {
           </CardContent>
         </Card>
 
-        {/* MCQ Review Section */}
-        {paper.has_mcq && mcqAnswers.length > 0 && (
-          <Card className="card-elevated">
-            <CardHeader>
-              <CardTitle className="text-lg">Answer Review</CardTitle>
-              <CardDescription>Review your MCQ answers</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {mcqAnswers.map((answer: any, idx: number) => {
-                const question = answer.rank_mcq_questions;
-                const options = question?.rank_mcq_options || [];
-                const correctOption = options.find((o: any) => o.is_correct);
-                const isCorrect = answer.selected_option_no === correctOption?.option_no;
-                
-                return (
-                  <div key={answer.question_id} className="p-4 rounded-lg border">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isCorrect ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-                      }`}>
-                        {isCorrect ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium mb-2">
-                          Q{question?.q_no}: {question?.question_text || 'Question'}
-                        </p>
-                        <div className="space-y-1 text-sm">
-                          <p className="text-muted-foreground">
-                            Your answer: <span className={isCorrect ? 'text-success' : 'text-destructive'}>
-                              Option {answer.selected_option_no}
-                            </span>
-                          </p>
-                          {!isCorrect && correctOption && (
-                            <p className="text-success">
-                              Correct answer: Option {correctOption.option_no}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </StudentLayout>
   );
