@@ -269,9 +269,17 @@ const AdminClasses = () => {
             <h1 className="text-2xl font-bold text-foreground">Classes</h1>
             <p className="text-muted-foreground">Manage your ICT classes</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => !open && closeDialog()}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            if (open) {
+              setEditingClass(null);
+              resetForm();
+            } else {
+              closeDialog();
+            }
+            setIsDialogOpen(open);
+          }}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setEditingClass(null); resetForm(); }}>
+              <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Class
               </Button>
