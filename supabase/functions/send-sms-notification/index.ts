@@ -9,6 +9,7 @@ interface SMSRequest {
   template_key: string;
   targetUsers?: string[]; // user IDs
   classId?: string;
+  classDayId?: string; // For class day specific notifications
   variables?: Record<string, string>; // Variables to replace in template
 }
 
@@ -42,7 +43,30 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: SMSRequest = await req.json();
-    const { template_key, targetUsers, classId, variables = {} } = body;
+    const { template_key, targetUsers, classId, classDayId, variables = {} } = body;
+    
+    // If classDayId is provided, fetch class day details for time variables
+    let classDayDetails: { date: string; start_time: string | null; end_time: string | null; title: string; class_name: string } | null = null;
+    if (classDayId) {
+      const { data: classDay } = await supabase
+        .from('class_days')
+        .select(`
+          date, start_time, end_time, title,
+          class_months!inner(classes!inner(title))
+        `)
+        .eq('id', classDayId)
+        .single();
+      
+      if (classDay) {
+        classDayDetails = {
+          date: classDay.date,
+          start_time: classDay.start_time,
+          end_time: classDay.end_time,
+          title: classDay.title,
+          class_name: (classDay.class_months as any)?.classes?.title || ''
+        };
+      }
+    }
 
     // Fetch template from database
     const { data: template, error: templateError } = await supabase
@@ -104,6 +128,23 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Helper function to format time
+    const formatTime = (time: string | null): string => {
+      if (!time) return '';
+      // time is in HH:MM:SS format, convert to HH:MM AM/PM
+      const [hours, minutes] = time.split(':');
+      const h = parseInt(hours, 10);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 || 12;
+      return `${hour12}:${minutes} ${ampm}`;
+    };
+    
+    // Helper function to format date
+    const formatDate = (dateStr: string): string => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    };
+
     // Send SMS to each recipient
     const results = [];
     for (const recipient of phoneNumbers) {
@@ -113,6 +154,18 @@ Deno.serve(async (req) => {
           ...variables,
           student_name: recipient.firstName || 'Student',
         };
+        
+        // Add class day details if available
+        if (classDayDetails) {
+          personalizedVars.class_name = classDayDetails.class_name;
+          personalizedVars.date = formatDate(classDayDetails.date);
+          personalizedVars.time = classDayDetails.start_time 
+            ? (classDayDetails.end_time 
+                ? `${formatTime(classDayDetails.start_time)} - ${formatTime(classDayDetails.end_time)}`
+                : formatTime(classDayDetails.start_time))
+            : 'TBD';
+        }
+        
         const message = replaceVariables(template.template_body, personalizedVars);
 
         // Format phone number (ensure it starts with country code)

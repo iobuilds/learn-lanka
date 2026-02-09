@@ -128,8 +128,11 @@ const SmsTemplatesManager = () => {
       link: 'https://app.example.com',
       class_name: 'A/L ICT Theory 2026',
       month: 'February 2026',
-      old_date: 'Feb 10',
-      new_date: 'Feb 12',
+      date: 'Mon, Feb 10',
+      time: '9:00 AM - 10:30 AM',
+      old_date: 'Mon, Feb 10',
+      new_date: 'Wed, Feb 12',
+      new_time: '2:00 PM - 3:30 PM',
       order_id: 'ORD-1234',
       tracking_info: 'Delivered to Colombo hub',
     };
