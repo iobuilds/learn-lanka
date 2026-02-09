@@ -606,9 +606,40 @@ export type Database = {
         }
         Relationships: []
       }
+      paper_attachment_user_access: {
+        Row: {
+          attachment_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          attachment_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          attachment_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_attachment_user_access_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "paper_attachments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       paper_attachments: {
         Row: {
+          access_type: string
           attachment_type: string
+          class_id: string | null
           created_at: string
           id: string
           paper_id: string
@@ -617,7 +648,9 @@ export type Database = {
           url: string
         }
         Insert: {
+          access_type?: string
           attachment_type: string
+          class_id?: string | null
           created_at?: string
           id?: string
           paper_id: string
@@ -626,7 +659,9 @@ export type Database = {
           url: string
         }
         Update: {
+          access_type?: string
           attachment_type?: string
+          class_id?: string | null
           created_at?: string
           id?: string
           paper_id?: string
@@ -635,6 +670,13 @@ export type Database = {
           url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "paper_attachments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "paper_attachments_paper_id_fkey"
             columns: ["paper_id"]

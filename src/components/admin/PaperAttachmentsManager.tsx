@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Plus, Trash2, Loader2, Video, FileText, ExternalLink, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Loader2, Video, FileText, ExternalLink, Users, BookOpen, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import UserAccessSelector from './UserAccessSelector';
 
 interface Attachment {
   id: string;
@@ -34,6 +36,8 @@ interface Attachment {
   url: string;
   sort_order: number;
   created_at: string;
+  access_type: string;
+  class_id: string | null;
 }
 
 interface PaperAttachmentsManagerProps {
@@ -47,11 +51,14 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [manageUsersAttachment, setManageUsersAttachment] = useState<Attachment | null>(null);
   
   // Form state
   const [attachmentType, setAttachmentType] = useState<string>('VIDEO');
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
+  const [accessType, setAccessType] = useState<string>('free');
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
 
   // Fetch attachments
   const { data: attachments = [], isLoading } = useQuery({
@@ -68,6 +75,20 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
     enabled: open,
   });
 
+  // Fetch classes for dropdown
+  const { data: classes = [] } = useQuery({
+    queryKey: ['classes-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, title')
+        .order('title');
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
   // Add attachment mutation
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -75,7 +96,7 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
         ? Math.max(...attachments.map(a => a.sort_order)) 
         : 0;
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('paper_attachments')
         .insert({
           paper_id: paperId,
@@ -83,12 +104,21 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
           title: title || null,
           url,
           sort_order: maxOrder + 1,
-        });
+          access_type: accessType,
+          class_id: accessType === 'class' ? selectedClassId : null,
+        })
+        .select()
+        .single();
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Attachment added!');
       queryClient.invalidateQueries({ queryKey: ['paper-attachments', paperId] });
+      // If access type is 'users', open user selector
+      if (accessType === 'users') {
+        setManageUsersAttachment(data);
+      }
       resetForm();
     },
     onError: (error: any) => {
@@ -120,11 +150,22 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
     setAttachmentType('VIDEO');
     setTitle('');
     setUrl('');
+    setAccessType('free');
+    setSelectedClassId('');
   };
 
-  const getYouTubeEmbedUrl = (url: string) => {
-    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  const getAccessBadge = (attachment: Attachment) => {
+    switch (attachment.access_type) {
+      case 'free':
+        return <Badge variant="secondary" className="gap-1"><Globe className="w-3 h-3" /> Free</Badge>;
+      case 'class':
+        const className = classes.find(c => c.id === attachment.class_id)?.title;
+        return <Badge variant="outline" className="gap-1"><BookOpen className="w-3 h-3" /> {className || 'Class'}</Badge>;
+      case 'users':
+        return <Badge className="gap-1"><Users className="w-3 h-3" /> Selected Users</Badge>;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -166,18 +207,25 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
                       <p className="font-medium truncate">
                         {attachment.title || (attachment.attachment_type === 'VIDEO' ? 'Review Video' : 'Review PDF')}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">{attachment.url}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {getAccessBadge(attachment)}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {attachment.access_type === 'users' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setManageUsersAttachment(attachment)}
+                        >
+                          <Users className="w-4 h-4 mr-1" />
+                          Manage
+                        </Button>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="icon"
-                        onClick={() => window.open(
-                          attachment.attachment_type === 'VIDEO' 
-                            ? attachment.url 
-                            : attachment.url, 
-                          '_blank'
-                        )}
+                        onClick={() => window.open(attachment.url, '_blank')}
                       >
                         <ExternalLink className="w-4 h-4" />
                       </Button>
@@ -228,6 +276,7 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
                     />
                   </div>
                 </div>
+                
                 <div className="space-y-2">
                   <Label>
                     {attachmentType === 'VIDEO' ? 'YouTube URL' : 'PDF URL'} *
@@ -242,10 +291,62 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
                   />
                   {attachmentType === 'VIDEO' && (
                     <p className="text-xs text-muted-foreground">
-                      Paste a YouTube video URL
+                      Paste a YouTube video URL (download/share disabled)
                     </p>
                   )}
                 </div>
+
+                {/* Access Control */}
+                <div className="space-y-2">
+                  <Label>Access Control *</Label>
+                  <Select value={accessType} onValueChange={setAccessType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free">
+                        <span className="flex items-center gap-2">
+                          <Globe className="w-4 h-4" /> Free (Everyone)
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="class">
+                        <span className="flex items-center gap-2">
+                          <BookOpen className="w-4 h-4" /> Class Enrollees Only
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="users">
+                        <span className="flex items-center gap-2">
+                          <Users className="w-4 h-4" /> Selected Users Only
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {accessType === 'class' && (
+                  <div className="space-y-2">
+                    <Label>Select Class *</Label>
+                    <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a class..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((cls) => (
+                          <SelectItem key={cls.id} value={cls.id}>
+                            {cls.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {accessType === 'users' && (
+                  <p className="text-xs text-muted-foreground">
+                    After adding, you'll be able to select specific users who can access this material.
+                  </p>
+                )}
+
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" size="sm" onClick={resetForm}>
                     Cancel
@@ -253,7 +354,7 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
                   <Button 
                     size="sm"
                     onClick={() => addMutation.mutate()}
-                    disabled={!url || addMutation.isPending}
+                    disabled={!url || (accessType === 'class' && !selectedClassId) || addMutation.isPending}
                   >
                     {addMutation.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -282,6 +383,16 @@ const PaperAttachmentsManager = ({ paperId, paperTitle, open, onOpenChange }: Pa
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Access Manager Dialog */}
+      {manageUsersAttachment && (
+        <UserAccessSelector
+          attachmentId={manageUsersAttachment.id}
+          attachmentTitle={manageUsersAttachment.title || 'Review Material'}
+          open={!!manageUsersAttachment}
+          onOpenChange={(open) => !open && setManageUsersAttachment(null)}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
