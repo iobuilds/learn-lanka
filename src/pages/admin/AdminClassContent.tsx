@@ -582,7 +582,13 @@ const AdminClassContent = () => {
       if (data.error) throw new Error(data.error);
 
       setDayMeetingLink(data.joinUrl);
-      toast.success('Zoom meeting created successfully!');
+      
+      // Show different success message based on license status
+      if (data.isLicensed) {
+        toast.success('Zoom meeting created with unique student links!');
+      } else {
+        toast.success('Zoom meeting created (upgrade to Pro for unique links)');
+      }
     } catch (error: any) {
       console.error('Zoom meeting creation error:', error);
       toast.error(error.message || 'Failed to create Zoom meeting');
