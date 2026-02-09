@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Download, Upload, Database, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { Download, Upload, Database, AlertTriangle, CheckCircle, Loader2, Trash2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +20,10 @@ import { toast } from 'sonner';
 const DatabaseBackupRestore = () => {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +130,59 @@ const DatabaseBackupRestore = () => {
     }
   };
 
+  const handleSeedDatabase = async () => {
+    setIsSeeding(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('You must be logged in');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('seed-database', {
+        body: { action: 'seed' },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      toast.success(response.data.message || 'Database seeded successfully!');
+    } catch (error: any) {
+      console.error('Seed error:', error);
+      toast.error(error.message || 'Failed to seed database');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const handleClearDatabase = async () => {
+    setIsClearing(true);
+    setShowClearConfirm(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('You must be logged in');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('seed-database', {
+        body: { action: 'clear' },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      toast.success(response.data.message || 'Database cleared successfully!');
+    } catch (error: any) {
+      console.error('Clear error:', error);
+      toast.error(error.message || 'Failed to clear database');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
     <Card className="card-elevated">
       <CardHeader>
@@ -202,6 +259,47 @@ const DatabaseBackupRestore = () => {
           </div>
         </div>
 
+        <Separator />
+
+        {/* Seed & Clear Section */}
+        <div className="space-y-3">
+          <h3 className="font-medium">Development Tools</h3>
+          <p className="text-sm text-muted-foreground">
+            Seed dummy data for testing or clear all data (users preserved)
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSeedDatabase}
+              disabled={isSeeding || isClearing}
+              className="gap-2"
+            >
+              {isSeeding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              {isSeeding ? 'Seeding...' : 'Add Dummy Data'}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => setShowClearConfirm(true)}
+              disabled={isSeeding || isClearing}
+              className="gap-2"
+            >
+              {isClearing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {isClearing ? 'Clearing...' : 'Clear All Data'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Note: Clear All Data will remove everything except user accounts, profiles, and roles.
+          </p>
+        </div>
+
         {/* Restore Confirmation Dialog */}
         <AlertDialog open={showRestoreConfirm} onOpenChange={setShowRestoreConfirm}>
           <AlertDialogContent>
@@ -227,6 +325,40 @@ const DatabaseBackupRestore = () => {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Yes, Restore Database
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Clear Database Confirmation Dialog */}
+        <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="w-5 h-5" />
+                Clear All Data?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>This will permanently delete:</p>
+                <ul className="list-disc list-inside text-sm space-y-1 my-2">
+                  <li>All classes, lessons, and class days</li>
+                  <li>All payments and enrollments</li>
+                  <li>All rank papers, attempts, and marks</li>
+                  <li>All shop products and orders</li>
+                  <li>All notifications and SMS logs</li>
+                  <li>All coupons and papers</li>
+                </ul>
+                <p className="font-medium">User accounts, profiles, and roles will be preserved.</p>
+                <p className="text-destructive font-medium">This action cannot be undone!</p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleClearDatabase}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Yes, Clear Everything
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
