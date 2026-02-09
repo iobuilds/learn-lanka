@@ -527,8 +527,21 @@ const ClassDetail = () => {
                                   body: { classDayId: day.id },
                                 });
                                 
-                                if (error) throw error;
-                                if (data.error) throw new Error(data.error);
+                                if (error) {
+                                  // Try to extract the real error message from the function response
+                                  const ctx = (error as any)?.context as Response | undefined;
+                                  if (ctx) {
+                                    const raw = await ctx.text();
+                                    try {
+                                      const parsed = JSON.parse(raw);
+                                      throw new Error(parsed?.error || error.message);
+                                    } catch {
+                                      throw new Error(raw || error.message);
+                                    }
+                                  }
+                                  throw error;
+                                }
+                                if (data?.error) throw new Error(data.error);
                                 
                                 // Open the unique join link
                                 window.open(data.joinUrl, '_blank');
