@@ -8,7 +8,7 @@ const corsHeaders = {
 interface VerifyOtpRequest {
   phone: string;
   otp: string;
-  purpose: 'REGISTER' | 'LOGIN' | 'RECOVERY' | 'PRIVATE_ENROLL';
+  purpose: 'REGISTER' | 'LOGIN' | 'RESET_PASSWORD' | 'PRIVATE_ENROLL';
 }
 
 // Format phone to international format (94xxxxxxxxx)
