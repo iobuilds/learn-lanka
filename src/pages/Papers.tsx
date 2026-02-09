@@ -1,14 +1,23 @@
 import { forwardRef, useEffect, useState } from 'react';
-import { FileText, Download, Lock, Loader2, LogIn } from 'lucide-react';
+import { FileText, Download, Lock, Loader2, LogIn, Video, ExternalLink, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import StudentLayout from '@/components/layouts/StudentLayout';
+import YouTubeEmbed from '@/components/YouTubeEmbed';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+
 interface Paper {
   id: string;
   title: string;
@@ -24,14 +33,24 @@ interface Paper {
   download_count: number;
 }
 
+interface PaperAttachment {
+  id: string;
+  paper_id: string;
+  attachment_type: string;
+  title: string | null;
+  url: string;
+  sort_order: number;
+}
+
 const Papers = () => {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('PAST_PAPER');
   const [tabInitialized, setTabInitialized] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [selectedPaperForReview, setSelectedPaperForReview] = useState<Paper | null>(null);
   const isGuest = !user;
 
-  // Fetch papers
+  // Fetch papers with attachments count
   const { data: papers = [], isLoading } = useQuery({
     queryKey: ['papers'],
     queryFn: async () => {
@@ -43,6 +62,30 @@ const Papers = () => {
       return data as Paper[];
     },
   });
+
+  // Fetch attachments for all papers
+  const { data: allAttachments = [] } = useQuery({
+    queryKey: ['paper-attachments-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('paper_attachments')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      return data as PaperAttachment[];
+    },
+  });
+
+  // Get attachments count for a paper
+  const getAttachmentsCount = (paperId: string) => {
+    return allAttachments.filter(a => a.paper_id === paperId).length;
+  };
+
+  // Get attachments for selected paper
+  const selectedPaperAttachments = selectedPaperForReview 
+    ? allAttachments.filter(a => a.paper_id === selectedPaperForReview.id)
+    : [];
+
 
   // Check if user has active subscription (simplified check)
   const { data: hasActiveSubscription = false } = useQuery({
@@ -232,6 +275,8 @@ const Papers = () => {
                     hasAccess={hasActiveSubscription}
                     downloadingId={downloadingPdf}
                     isGuest={isGuest}
+                    getAttachmentsCount={getAttachmentsCount}
+                    onViewReview={setSelectedPaperForReview}
                   />
                 ))}
               </div>
@@ -253,6 +298,8 @@ const Papers = () => {
                     hasAccess={hasActiveSubscription}
                     downloadingId={downloadingPdf}
                     isGuest={isGuest}
+                    getAttachmentsCount={getAttachmentsCount}
+                    onViewReview={setSelectedPaperForReview}
                   />
                 ))}
               </div>
@@ -273,12 +320,70 @@ const Papers = () => {
                     hasAccess={hasActiveSubscription}
                     downloadingId={downloadingPdf}
                     isGuest={isGuest}
+                    attachmentsCount={getAttachmentsCount(paper.id)}
+                    onViewReview={setSelectedPaperForReview}
                   />
                 ))}
               </div>
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Review Materials Dialog */}
+        <Dialog open={!!selectedPaperForReview} onOpenChange={(open) => !open && setSelectedPaperForReview(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Review Materials</DialogTitle>
+            </DialogHeader>
+            {selectedPaperForReview && (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">{selectedPaperForReview.title}</p>
+                
+                {selectedPaperAttachments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No review materials available for this paper
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedPaperAttachments.map((attachment) => (
+                      <div key={attachment.id} className="space-y-2">
+                        {attachment.attachment_type === 'VIDEO' ? (
+                          <div className="space-y-2">
+                            <p className="font-medium flex items-center gap-2">
+                              <Video className="w-4 h-4 text-primary" />
+                              {attachment.title || 'Review Video'}
+                            </p>
+                            <YouTubeEmbed url={attachment.url} />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{attachment.title || 'Review PDF'}</p>
+                                <p className="text-xs text-muted-foreground">PDF Document</p>
+                              </div>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => window.open(attachment.url, '_blank')}
+                            >
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Open
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </PageWrapper>
   );
@@ -322,8 +427,10 @@ const YearCard = forwardRef<
     hasAccess: boolean;
     downloadingId: string | null;
     isGuest: boolean;
+    getAttachmentsCount: (paperId: string) => number;
+    onViewReview: (paper: Paper) => void;
   }
->(({ year, papers, onDownload, hasAccess, downloadingId, isGuest }, ref) => (
+>(({ year, papers, onDownload, hasAccess, downloadingId, isGuest, getAttachmentsCount, onViewReview }, ref) => (
   <div ref={ref}>
     <Card className="overflow-hidden">
       <div className="bg-foreground text-background px-4 py-3">
@@ -333,23 +440,36 @@ const YearCard = forwardRef<
         <div className="grid grid-cols-2 gap-4">
           {papers.map((paper) => {
             const isDownloading = downloadingId === paper.id;
+            const attachmentsCount = getAttachmentsCount(paper.id);
             return (
               <div key={paper.id} className="space-y-2">
                 <p className="font-semibold text-sm text-foreground">{paper.title}</p>
-                <Button
-                  className="w-full"
-                  size="sm"
-                  onClick={() => onDownload(paper)}
-                  disabled={(!paper.is_free && !hasAccess) || isDownloading}
-                >
-                  {isDownloading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Downloading...</>
-                  ) : !paper.is_free && !hasAccess ? (
-                    <><Lock className="w-4 h-4 mr-2" /> Locked</>
-                  ) : (
-                    <><Download className="w-4 h-4 mr-2" /> Download</>
+                <div className="flex gap-1">
+                  <Button
+                    className="flex-1"
+                    size="sm"
+                    onClick={() => onDownload(paper)}
+                    disabled={(!paper.is_free && !hasAccess) || isDownloading}
+                  >
+                    {isDownloading ? (
+                      <><Loader2 className="w-4 h-4 mr-1 animate-spin" /></>
+                    ) : !paper.is_free && !hasAccess ? (
+                      <><Lock className="w-4 h-4 mr-1" /> Locked</>
+                    ) : (
+                      <><Download className="w-4 h-4 mr-1" /> Download</>
+                    )}
+                  </Button>
+                  {attachmentsCount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onViewReview(paper)}
+                      title="View review materials"
+                    >
+                      <Video className="w-4 h-4" />
+                    </Button>
                   )}
-                </Button>
+                </div>
               </div>
             );
           })}
@@ -370,8 +490,10 @@ const GradeCard = forwardRef<
     hasAccess: boolean;
     downloadingId: string | null;
     isGuest: boolean;
+    getAttachmentsCount: (paperId: string) => number;
+    onViewReview: (paper: Paper) => void;
   }
->(({ grade, papers, onDownload, hasAccess, downloadingId, isGuest }, ref) => {
+>(({ grade, papers, onDownload, hasAccess, downloadingId, isGuest, getAttachmentsCount, onViewReview }, ref) => {
   // Group by term
   const byTerm = papers.reduce((acc, p) => {
     const term = p.term ? `Term ${p.term}` : 'Other';
@@ -406,6 +528,7 @@ const GradeCard = forwardRef<
               <div className="space-y-2">
                 {termPapers.map((paper) => {
                   const isDownloading = downloadingId === paper.id;
+                  const attachmentsCount = getAttachmentsCount(paper.id);
                   return (
                     <div
                       key={paper.id}
@@ -420,20 +543,32 @@ const GradeCard = forwardRef<
                           )}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onDownload(paper)}
-                        disabled={(!paper.is_free && !hasAccess) || isDownloading}
-                      >
-                        {isDownloading ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : !paper.is_free && !hasAccess ? (
-                          <Lock className="w-3 h-3" />
-                        ) : (
-                          <Download className="w-3 h-3" />
+                      <div className="flex gap-1">
+                        {attachmentsCount > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onViewReview(paper)}
+                            title="View review materials"
+                          >
+                            <Video className="w-3 h-3" />
+                          </Button>
                         )}
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onDownload(paper)}
+                          disabled={(!paper.is_free && !hasAccess) || isDownloading}
+                        >
+                          {isDownloading ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : !paper.is_free && !hasAccess ? (
+                            <Lock className="w-3 h-3" />
+                          ) : (
+                            <Download className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -453,13 +588,17 @@ const PaperCard = ({
   onDownload, 
   hasAccess,
   downloadingId,
-  isGuest
+  isGuest,
+  attachmentsCount,
+  onViewReview
 }: { 
   paper: Paper; 
   onDownload: (paper: Paper) => void;
   hasAccess: boolean;
   downloadingId: string | null;
   isGuest: boolean;
+  attachmentsCount: number;
+  onViewReview: (paper: Paper) => void;
 }) => {
   const isDownloading = downloadingId === paper.id;
   return (
@@ -469,24 +608,43 @@ const PaperCard = ({
           <FileText className="w-5 h-5 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-foreground truncate">{paper.title}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium text-foreground truncate">{paper.title}</p>
+            {attachmentsCount > 0 && (
+              <Badge variant="secondary" className="shrink-0 gap-1">
+                <Video className="w-3 h-3" />
+                {attachmentsCount}
+              </Badge>
+            )}
+          </div>
           {paper.description && (
             <p className="text-xs text-muted-foreground line-clamp-2">{paper.description}</p>
           )}
-          <Button 
-            className="mt-2 w-full" 
-            size="sm"
-            onClick={() => onDownload(paper)}
-            disabled={(!paper.is_free && !hasAccess) || isDownloading}
-          >
-            {isDownloading ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Downloading...</>
-            ) : !paper.is_free && !hasAccess ? (
-              <><Lock className="w-4 h-4 mr-2" /> Subscription Required</>
-            ) : (
-              <><Download className="w-4 h-4 mr-2" /> Download</>
+          <div className="flex gap-2 mt-2">
+            <Button 
+              className="flex-1" 
+              size="sm"
+              onClick={() => onDownload(paper)}
+              disabled={(!paper.is_free && !hasAccess) || isDownloading}
+            >
+              {isDownloading ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Downloading...</>
+              ) : !paper.is_free && !hasAccess ? (
+                <><Lock className="w-4 h-4 mr-2" /> Subscription Required</>
+              ) : (
+                <><Download className="w-4 h-4 mr-2" /> Download</>
+              )}
+            </Button>
+            {attachmentsCount > 0 && (
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => onViewReview(paper)}
+              >
+                <Video className="w-4 h-4" />
+              </Button>
             )}
-          </Button>
+          </div>
         </div>
       </div>
     </Card>

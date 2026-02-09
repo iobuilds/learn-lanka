@@ -606,6 +606,44 @@ export type Database = {
         }
         Relationships: []
       }
+      paper_attachments: {
+        Row: {
+          attachment_type: string
+          created_at: string
+          id: string
+          paper_id: string
+          sort_order: number
+          title: string | null
+          url: string
+        }
+        Insert: {
+          attachment_type: string
+          created_at?: string
+          id?: string
+          paper_id: string
+          sort_order?: number
+          title?: string | null
+          url: string
+        }
+        Update: {
+          attachment_type?: string
+          created_at?: string
+          id?: string
+          paper_id?: string
+          sort_order?: number
+          title?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_attachments_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       papers: {
         Row: {
           created_at: string

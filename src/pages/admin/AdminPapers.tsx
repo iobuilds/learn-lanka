@@ -9,7 +9,9 @@ import {
   Download,
   Lock,
   Unlock,
-  Upload
+  Upload,
+  Video,
+  Paperclip
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +55,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import PaperAttachmentsManager from '@/components/admin/PaperAttachmentsManager';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -80,6 +83,8 @@ const AdminPapers = () => {
   const [editingPaper, setEditingPaper] = useState<Paper | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [attachmentsPaperId, setAttachmentsPaperId] = useState<string | null>(null);
+  const [attachmentsPaperTitle, setAttachmentsPaperTitle] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
@@ -517,6 +522,13 @@ const AdminPapers = () => {
                             <Download className="w-4 h-4 mr-2" />
                             Download
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            setAttachmentsPaperId(paper.id);
+                            setAttachmentsPaperTitle(paper.title);
+                          }}>
+                            <Video className="w-4 h-4 mr-2" />
+                            Review Materials
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openEditDialog(paper)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit
@@ -568,6 +580,21 @@ const AdminPapers = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Paper Attachments Manager */}
+      {attachmentsPaperId && (
+        <PaperAttachmentsManager
+          paperId={attachmentsPaperId}
+          paperTitle={attachmentsPaperTitle}
+          open={!!attachmentsPaperId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAttachmentsPaperId(null);
+              setAttachmentsPaperTitle('');
+            }
+          }}
+        />
+      )}
     </AdminLayout>
   );
 };
