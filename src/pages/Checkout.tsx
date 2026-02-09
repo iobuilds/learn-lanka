@@ -9,7 +9,9 @@ import {
   MapPin,
   Phone,
   CreditCard,
-  CheckCircle2
+  CheckCircle2,
+  Tag,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +44,13 @@ interface Product {
   price_both: number | null;
 }
 
+interface AppliedCoupon {
+  id: string;
+  code: string;
+  discount_type: string;
+  discount_value: number;
+}
+
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,6 +67,11 @@ const Checkout = () => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // Coupon fields
+  const [couponCode, setCouponCode] = useState('');
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
 
   // Load cart from location state or localStorage
   useEffect(() => {
@@ -105,15 +119,109 @@ const Checkout = () => {
     }
   };
 
-  const cartTotal = cart.reduce((sum, item) => {
+  const cartSubtotal = cart.reduce((sum, item) => {
     const product = products.find(p => p.id === item.productId);
     if (!product) return sum;
     return sum + getPrice(product, item.selectedType) * item.quantity;
   }, 0);
 
+  const calculateDiscount = () => {
+    if (!appliedCoupon) return 0;
+    
+    switch (appliedCoupon.discount_type) {
+      case 'PERCENT':
+        return Math.round(cartSubtotal * (appliedCoupon.discount_value / 100));
+      case 'FIXED':
+        return Math.min(appliedCoupon.discount_value, cartSubtotal);
+      case 'FULL':
+        return cartSubtotal;
+      default:
+        return 0;
+    }
+  };
+
+  const discount = calculateDiscount();
+  const cartTotal = cartSubtotal - discount;
+
   const needsDelivery = cart.some(item => 
     item.selectedType === 'PRINTED' || item.selectedType === 'BOTH'
   );
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error('Please enter a coupon code');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Please login to apply coupon');
+      return;
+    }
+
+    setIsApplyingCoupon(true);
+    try {
+      // Find the coupon
+      const { data: coupon, error: couponError } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.trim().toUpperCase())
+        .eq('is_active', true)
+        .single();
+
+      if (couponError || !coupon) {
+        toast.error('Invalid coupon code');
+        return;
+      }
+
+      // Check expiry
+      if (coupon.valid_until && new Date(coupon.valid_until) < new Date()) {
+        toast.error('This coupon has expired');
+        return;
+      }
+
+      // Check if not yet valid
+      if (coupon.valid_from && new Date(coupon.valid_from) > new Date()) {
+        toast.error('This coupon is not yet valid');
+        return;
+      }
+
+      // Check max uses
+      if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+        toast.error('This coupon has reached its usage limit');
+        return;
+      }
+
+      // Check if user already used this coupon
+      const { data: existingUsage } = await supabase
+        .from('coupon_usages')
+        .select('id')
+        .eq('coupon_id', coupon.id)
+        .eq('user_id', user.id);
+
+      if (existingUsage && existingUsage.length > 0) {
+        toast.error('You have already used this coupon');
+        return;
+      }
+
+      setAppliedCoupon({
+        id: coupon.id,
+        code: coupon.code,
+        discount_type: coupon.discount_type,
+        discount_value: coupon.discount_value
+      });
+      setCouponCode('');
+      toast.success('Coupon applied successfully!');
+    } catch (error: any) {
+      toast.error('Failed to apply coupon');
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    toast.success('Coupon removed');
+  };
 
   const handleSubmitOrder = async () => {
     if (!user) {
@@ -166,6 +274,19 @@ const Checkout = () => {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // Record coupon usage if applied
+      if (appliedCoupon) {
+        await supabase.from('coupon_usages').insert({
+          coupon_id: appliedCoupon.id,
+          user_id: user.id
+        });
+        
+        // Increment coupon used_count
+        await supabase.from('coupons')
+          .update({ used_count: (await supabase.from('coupons').select('used_count').eq('id', appliedCoupon.id).single()).data?.used_count + 1 || 1 })
+          .eq('id', appliedCoupon.id);
+      }
 
       setOrderId(order.id);
       setStep('payment');
@@ -364,11 +485,67 @@ const Checkout = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Coupon Section */}
+                  {!appliedCoupon ? (
+                    <div className="space-y-2">
+                      <Label>Coupon Code</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter code"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="flex-1"
+                        />
+                        <Button 
+                          variant="outline" 
+                          onClick={handleApplyCoupon}
+                          disabled={isApplyingCoupon}
+                        >
+                          {isApplyingCoupon ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            'Apply'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-2 bg-success/10 rounded-lg border border-success/20">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-success" />
+                        <span className="text-sm font-medium text-success">{appliedCoupon.code}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({appliedCoupon.discount_type === 'PERCENT' 
+                            ? `${appliedCoupon.discount_value}% off` 
+                            : appliedCoupon.discount_type === 'FULL' 
+                              ? 'Free' 
+                              : `Rs. ${appliedCoupon.discount_value} off`})
+                        </span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6"
+                        onClick={handleRemoveCoupon}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  <Separator />
+
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal</span>
-                      <span>Rs. {cartTotal.toLocaleString()}</span>
+                      <span>Rs. {cartSubtotal.toLocaleString()}</span>
                     </div>
+                    {appliedCoupon && discount > 0 && (
+                      <div className="flex justify-between text-sm text-success">
+                        <span>Discount</span>
+                        <span>- Rs. {discount.toLocaleString()}</span>
+                      </div>
+                    )}
                     {needsDelivery && (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Delivery</span>
