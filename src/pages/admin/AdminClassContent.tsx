@@ -15,7 +15,9 @@ import {
   X,
   ClipboardList,
   Send,
-  Bell
+  Bell,
+  CheckCircle,
+  Circle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -292,6 +294,27 @@ const AdminClassContent = () => {
     },
   });
 
+  // Mark class day as conducted
+  const markConductedMutation = useMutation({
+    mutationFn: async ({ dayId, isConducted }: { dayId: string; isConducted: boolean }) => {
+      const { error } = await supabase
+        .from('class_days')
+        .update({ 
+          is_conducted: isConducted,
+          conducted_at: isConducted ? new Date().toISOString() : null,
+        })
+        .eq('id', dayId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['class-days'] });
+      toast.success(variables.isConducted ? 'Marked as conducted!' : 'Unmarked');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update');
+    },
+  });
+
   // Upload PDF mutation
   const uploadPdfMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -552,12 +575,35 @@ const AdminClassContent = () => {
               ) : (
                 <div className="grid gap-3">
                   {classDays.map((day, index) => (
-                    <Card key={day.id} className={cn("card-elevated", day.is_extra && "border-accent/50")}>
+                    <Card key={day.id} className={cn(
+                      "card-elevated", 
+                      day.is_extra && "border-accent/50",
+                      day.is_conducted && "border-success/50 bg-success/5"
+                    )}>
                       <CardContent className="p-4 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <span className="font-bold text-primary">{index + 1}</span>
-                          </div>
+                          {/* Conducted toggle button */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "w-10 h-10 rounded-lg",
+                              day.is_conducted 
+                                ? "bg-success/20 text-success hover:bg-success/30" 
+                                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            )}
+                            onClick={() => markConductedMutation.mutate({ 
+                              dayId: day.id, 
+                              isConducted: !day.is_conducted 
+                            })}
+                            disabled={markConductedMutation.isPending}
+                          >
+                            {day.is_conducted ? (
+                              <CheckCircle className="w-5 h-5" />
+                            ) : (
+                              <Circle className="w-5 h-5" />
+                            )}
+                          </Button>
                           <div>
                             <p className="font-medium text-foreground">{day.title}</p>
                             <p className="text-sm text-muted-foreground">
@@ -568,6 +614,11 @@ const AdminClassContent = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {day.is_conducted && (
+                            <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                              Conducted
+                            </Badge>
+                          )}
                           {day.is_extra && (
                             <Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">
                               Extra
@@ -590,6 +641,24 @@ const AdminClassContent = () => {
                               <DropdownMenuItem onClick={() => openEditDay(day)}>
                                 <Edit className="w-4 h-4 mr-2" />
                                 Edit Day
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => markConductedMutation.mutate({ 
+                                  dayId: day.id, 
+                                  isConducted: !day.is_conducted 
+                                })}
+                              >
+                                {day.is_conducted ? (
+                                  <>
+                                    <Circle className="w-4 h-4 mr-2" />
+                                    Mark Not Conducted
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Mark Conducted
+                                  </>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive"

@@ -371,19 +371,33 @@ const ClassDetail = () => {
             <h1 className="text-lg sm:text-2xl font-bold text-foreground line-clamp-1">{classData.title}</h1>
             <p className="text-xs sm:text-base text-muted-foreground mt-1 line-clamp-2">{classData.description}</p>
           </div>
-          <Badge 
-            variant="outline"
-            className={cn(
-              "text-xs sm:text-sm px-2 sm:px-4 py-1 self-start sm:shrink-0",
-              paymentStatus === 'PAID' && 'badge-paid',
-              paymentStatus === 'PENDING' && 'badge-pending',
-              paymentStatus === 'UNPAID' && 'badge-unpaid'
-            )}
-          >
-            {paymentStatus === 'PAID' && 'Paid'}
-            {paymentStatus === 'PENDING' && 'Pending'}
-            {paymentStatus === 'UNPAID' && 'Unpaid'}
-          </Badge>
+          {isPrivateClass ? (
+            // Private class: show payment received date or enrolled status
+            <Badge 
+              variant="outline"
+              className="text-xs sm:text-sm px-2 sm:px-4 py-1 self-start sm:shrink-0 badge-paid"
+            >
+              {enrollment?.payment_received_at 
+                ? `Paid: ${new Date(enrollment.payment_received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                : 'Enrolled'
+              }
+            </Badge>
+          ) : (
+            // Public class: show payment status
+            <Badge 
+              variant="outline"
+              className={cn(
+                "text-xs sm:text-sm px-2 sm:px-4 py-1 self-start sm:shrink-0",
+                paymentStatus === 'PAID' && 'badge-paid',
+                paymentStatus === 'PENDING' && 'badge-pending',
+                paymentStatus === 'UNPAID' && 'badge-unpaid'
+              )}
+            >
+              {paymentStatus === 'PAID' && 'Paid'}
+              {paymentStatus === 'PENDING' && 'Pending'}
+              {paymentStatus === 'UNPAID' && 'Unpaid'}
+            </Badge>
+          )}
         </div>
 
         {/* Tabs */}
@@ -436,12 +450,20 @@ const ClassDetail = () => {
                 {classDays.map((day, index) => (
                   <Card key={day.id} className={cn(
                     "card-elevated",
-                    day.is_extra && "border-accent/50"
+                    day.is_extra && "border-accent/50",
+                    day.is_conducted && "border-success/50 bg-success/5"
                   )}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <span className="text-lg font-bold text-primary">{index + 1}</span>
+                        <div className={cn(
+                          "w-12 h-12 rounded-lg flex items-center justify-center",
+                          day.is_conducted ? "bg-success/20" : "bg-primary/10"
+                        )}>
+                          {day.is_conducted ? (
+                            <CheckCircle className="w-6 h-6 text-success" />
+                          ) : (
+                            <span className="text-lg font-bold text-primary">{index + 1}</span>
+                          )}
                         </div>
                         <div>
                           <p className="font-medium text-foreground">{day.title}</p>
@@ -455,6 +477,11 @@ const ClassDetail = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {day.is_conducted && (
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs">
+                            Conducted
+                          </Badge>
+                        )}
                         {day.is_extra && (
                           <Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">
                             Extra Session
