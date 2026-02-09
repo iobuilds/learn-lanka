@@ -274,14 +274,34 @@ const AdminClassContent = () => {
       const monthName = new Date(selectedMonth + '-01').toLocaleDateString('en-US', { 
         month: 'long', year: 'numeric' 
       });
+
+      // Build schedule details with times
+      const scheduleDetails = classDays
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(day => {
+          const dateStr = new Date(day.date).toLocaleDateString('en-US', { 
+            weekday: 'short', month: 'short', day: 'numeric' 
+          });
+          const timeStr = day.start_time 
+            ? ` at ${day.start_time.slice(0, 5)}${day.end_time ? ` - ${day.end_time.slice(0, 5)}` : ''}`
+            : '';
+          return `📅 ${dateStr}${timeStr}`;
+        })
+        .join('\n');
       
       // Create in-app notification
       await supabase.from('notifications').insert({
-        title: '📅 Class Schedule Published',
-        message: `${classData.title} schedule for ${monthName} is now available. ${classDays.length} class days have been scheduled.`,
+        title: `📅 ${classData.title} - ${monthName} Schedule`,
+        message: `Class schedule for ${monthName} has been published!\n\n${scheduleDetails}\n\n${classDays.length} classes scheduled.`,
         target_type: 'CLASS',
         target_ref: id,
       });
+
+      // Update class_month to mark as notified
+      await supabase
+        .from('class_months')
+        .update({ schedule_notified_at: new Date().toISOString() })
+        .eq('id', classMonth.id);
       
       // Send SMS notification
       try {
@@ -289,9 +309,12 @@ const AdminClassContent = () => {
           body: {
             type: 'schedule_published',
             classId: id,
+            previousMonthOnly: true,
+            previousMonth: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7),
             data: {
               className: classData.title,
               month: monthName,
+              classCount: classDays.length,
             },
           },
         });
@@ -300,6 +323,7 @@ const AdminClassContent = () => {
       }
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['class-month', id, selectedMonth] });
       toast.success('Schedule published and students notified!');
     },
     onError: (error: any) => {
@@ -568,16 +592,19 @@ const AdminClassContent = () => {
                 <div className="flex items-center gap-2">
                   {classDays.length > 0 && (
                     <Button 
-                      variant="outline"
+                      variant={classMonth?.schedule_notified_at ? "secondary" : "outline"}
                       onClick={() => publishScheduleMutation.mutate()}
                       disabled={publishScheduleMutation.isPending}
+                      className={classMonth?.schedule_notified_at ? "text-success border-success/30" : ""}
                     >
                       {publishScheduleMutation.isPending ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : classMonth?.schedule_notified_at ? (
+                        <CheckCircle className="w-4 h-4 mr-2" />
                       ) : (
                         <Bell className="w-4 h-4 mr-2" />
                       )}
-                      Notify Students
+                      {classMonth?.schedule_notified_at ? 'Notified' : 'Notify Students'}
                     </Button>
                   )}
                   <Button onClick={() => { resetDayForm(); setDayDialogOpen(true); }}>

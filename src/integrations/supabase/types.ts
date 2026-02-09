@@ -140,18 +140,21 @@ export type Database = {
           class_id: string
           id: string
           monthly_fee_override: number | null
+          schedule_notified_at: string | null
           year_month: string
         }
         Insert: {
           class_id: string
           id?: string
           monthly_fee_override?: number | null
+          schedule_notified_at?: string | null
           year_month: string
         }
         Update: {
           class_id?: string
           id?: string
           monthly_fee_override?: number | null
+          schedule_notified_at?: string | null
           year_month?: string
         }
         Relationships: [

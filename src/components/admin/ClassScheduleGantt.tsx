@@ -1,4 +1,4 @@
-import { Calendar, ChevronLeft, ChevronRight, Bell, Loader2, List, Grid3X3, CalendarDays } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Bell, Loader2, List, Grid3X3, CalendarDays, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,15 +53,21 @@ const ClassScheduleGantt = () => {
   const dateRange = getDateRange();
   const yearMonth = format(currentDate, 'yyyy-MM');
 
-  // Fetch all classes with their days
+  // Fetch all classes with their days and notification status
   const { data: classesWithDays = [], isLoading } = useQuery({
-    queryKey: ['gantt-schedule', format(dateRange.start, 'yyyy-MM-dd'), format(dateRange.end, 'yyyy-MM-dd')],
+    queryKey: ['gantt-schedule', format(dateRange.start, 'yyyy-MM-dd'), format(dateRange.end, 'yyyy-MM-dd'), yearMonth],
     queryFn: async () => {
       const { data: classes, error: classError } = await supabase
         .from('classes')
         .select('id, title')
         .order('title');
       if (classError) throw classError;
+
+      // Get class months for notification status
+      const { data: classMonths } = await supabase
+        .from('class_months')
+        .select('class_id, schedule_notified_at')
+        .eq('year_month', yearMonth);
 
       // Get class days in date range
       const { data: classDays, error: daysError } = await supabase
@@ -73,6 +79,8 @@ const ClassScheduleGantt = () => {
         .gte('date', format(dateRange.start, 'yyyy-MM-dd'))
         .lte('date', format(dateRange.end, 'yyyy-MM-dd'));
       if (daysError) throw daysError;
+
+      const notifiedMap = new Map((classMonths || []).map(cm => [cm.class_id, cm.schedule_notified_at]));
 
       return (classes || []).map(cls => {
         const days = (classDays || [])
@@ -86,14 +94,14 @@ const ClassScheduleGantt = () => {
             is_conducted: d.is_conducted,
             is_extra: d.is_extra,
           }));
-        return { ...cls, days };
-      }).filter(cls => cls.days.length > 0) as ClassWithDays[];
+        return { ...cls, days, schedule_notified_at: notifiedMap.get(cls.id) || null };
+      }).filter(cls => cls.days.length > 0) as (ClassWithDays & { schedule_notified_at: string | null })[];
     },
   });
 
   // Publish schedule mutation
   const publishMutation = useMutation({
-    mutationFn: async (classData: ClassWithDays) => {
+    mutationFn: async (classData: ClassWithDays & { schedule_notified_at: string | null }) => {
       const monthName = format(currentDate, 'MMMM yyyy');
       
       const scheduleDetails = classData.days
@@ -115,6 +123,13 @@ const ClassScheduleGantt = () => {
         target_ref: classData.id,
       });
 
+      // Update class_month to mark as notified
+      await supabase
+        .from('class_months')
+        .update({ schedule_notified_at: new Date().toISOString() })
+        .eq('class_id', classData.id)
+        .eq('year_month', yearMonth);
+
       const prevMonth = format(subMonths(currentDate, 1), 'yyyy-MM');
       
       await supabase.functions.invoke('send-sms-notification', {
@@ -134,6 +149,7 @@ const ClassScheduleGantt = () => {
       return classData;
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['gantt-schedule'] });
       toast.success(`Schedule published for ${data.title}!`);
     },
     onError: (error: any) => {
@@ -336,18 +352,23 @@ const ClassScheduleGantt = () => {
                         })}
                         <td className="sticky right-0 z-10 bg-card p-1 border-l">
                           <Button
-                            variant="ghost"
+                            variant={cls.schedule_notified_at ? "secondary" : "ghost"}
                             size="sm"
-                            className="h-7 px-2 text-xs gap-1"
+                            className={cn(
+                              "h-7 px-2 text-xs gap-1",
+                              cls.schedule_notified_at && "text-success border-success/30"
+                            )}
                             onClick={() => publishMutation.mutate(cls)}
                             disabled={publishMutation.isPending}
                           >
                             {publishMutation.isPending ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : cls.schedule_notified_at ? (
+                              <CheckCircle className="w-3 h-3" />
                             ) : (
                               <Bell className="w-3 h-3" />
                             )}
-                            Publish
+                            {cls.schedule_notified_at ? 'Notified' : 'Publish'}
                           </Button>
                         </td>
                       </tr>

@@ -134,24 +134,47 @@ D) SQL`;
           throw new Error(`Question number would exceed ${maxQuestions}. Delete some questions first.`);
         }
 
-        // Create question with upsert to handle potential conflicts
-        const { data: question, error: qError } = await supabase
+        // Check if question already exists at this q_no
+        const { data: existing } = await supabase
           .from('rank_mcq_questions')
-          .upsert({
-            rank_paper_id: paperId,
-            q_no: currentQNo,
-            question_text: q.question,
-          }, {
-            onConflict: 'rank_paper_id,q_no',
-          })
-          .select()
-          .single();
-        
-        if (qError) throw qError;
+          .select('id')
+          .eq('rank_paper_id', paperId)
+          .eq('q_no', currentQNo)
+          .maybeSingle();
+
+        let questionId: string;
+
+        if (existing) {
+          // Update existing question
+          const { data: updated, error: uError } = await supabase
+            .from('rank_mcq_questions')
+            .update({ question_text: q.question })
+            .eq('id', existing.id)
+            .select()
+            .single();
+          if (uError) throw uError;
+          questionId = updated.id;
+
+          // Delete old options before inserting new ones
+          await supabase.from('rank_mcq_options').delete().eq('question_id', questionId);
+        } else {
+          // Create new question
+          const { data: created, error: cError } = await supabase
+            .from('rank_mcq_questions')
+            .insert({
+              rank_paper_id: paperId,
+              q_no: currentQNo,
+              question_text: q.question,
+            })
+            .select()
+            .single();
+          if (cError) throw cError;
+          questionId = created.id;
+        }
 
         // Create options
         const optionsToInsert = q.options.map((text, idx) => ({
-          question_id: question.id,
+          question_id: questionId,
           option_no: idx + 1,
           option_text: text,
           is_correct: idx === q.correctIndex,
