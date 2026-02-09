@@ -154,10 +154,25 @@ const Login = () => {
               </div>
             </form>
 
-            {/* Help Section */}
-            <div className="mt-6 pt-6 border-t border-slate-200 text-center">
-              <p className="text-sm font-medium text-slate-700">Need Help?</p>
-              <p className="text-sm text-slate-500">Call: 071 455 5513</p>
+            {/* Footer Links */}
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
+                <Link to="/papers" className="text-slate-500 hover:text-blue-600 transition-colors">
+                  Papers
+                </Link>
+                <Link to="/contact" className="text-slate-500 hover:text-blue-600 transition-colors">
+                  Contact Us
+                </Link>
+                <Link to="/privacy-policy" className="text-slate-500 hover:text-blue-600 transition-colors">
+                  Privacy Policy
+                </Link>
+                <Link to="/terms" className="text-slate-500 hover:text-blue-600 transition-colors">
+                  Terms
+                </Link>
+                <Link to="/refund-policy" className="text-slate-500 hover:text-blue-600 transition-colors">
+                  Refund Policy
+                </Link>
+              </div>
             </div>
           </div>
         </div>
