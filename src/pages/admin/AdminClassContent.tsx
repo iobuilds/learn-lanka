@@ -19,7 +19,8 @@ import {
   CheckCircle,
   Circle,
   Users,
-  Link2
+  Link2,
+  Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +79,8 @@ const AdminClassContent = () => {
   const [dayIsExtra, setDayIsExtra] = useState(false);
   const [dayMeetingLink, setDayMeetingLink] = useState('');
   const [notifyMeetingLink, setNotifyMeetingLink] = useState(false);
+  const [createZoomMeeting, setCreateZoomMeeting] = useState(false);
+  const [creatingZoomMeeting, setCreatingZoomMeeting] = useState(false);
   
   // Lesson dialog state
   const [lessonDialogOpen, setLessonDialogOpen] = useState(false);
@@ -519,6 +522,8 @@ const AdminClassContent = () => {
     setDayIsExtra(false);
     setDayMeetingLink('');
     setNotifyMeetingLink(false);
+    setCreateZoomMeeting(false);
+    setCreatingZoomMeeting(false);
   };
 
   const resetLessonForm = () => {
@@ -540,7 +545,50 @@ const AdminClassContent = () => {
     setDayIsExtra(day.is_extra);
     setDayMeetingLink(day.meeting_link || '');
     setNotifyMeetingLink(false);
+    setCreateZoomMeeting(false);
     setDayDialogOpen(true);
+  };
+
+  // Create Zoom meeting handler
+  const handleCreateZoomMeeting = async (classDayId: string) => {
+    if (!dayStartTime || !dayDate) {
+      toast.error('Please set date and start time first');
+      return;
+    }
+    
+    setCreatingZoomMeeting(true);
+    try {
+      // Calculate meeting duration (default 60 if no end time)
+      let duration = 60;
+      if (dayEndTime) {
+        const [startH, startM] = dayStartTime.split(':').map(Number);
+        const [endH, endM] = dayEndTime.split(':').map(Number);
+        duration = (endH * 60 + endM) - (startH * 60 + startM);
+      }
+
+      // Convert to ISO 8601 format for Zoom
+      const startTime = `${dayDate}T${dayStartTime}:00`;
+
+      const { data, error } = await supabase.functions.invoke('create-zoom-meeting', {
+        body: {
+          classDayId,
+          topic: `${classData?.title} - ${dayTitle}`,
+          startTime,
+          duration,
+        },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      setDayMeetingLink(data.joinUrl);
+      toast.success('Zoom meeting created successfully!');
+    } catch (error: any) {
+      console.error('Zoom meeting creation error:', error);
+      toast.error(error.message || 'Failed to create Zoom meeting');
+    } finally {
+      setCreatingZoomMeeting(false);
+    }
   };
 
   const openAddLesson = (dayId: string) => {
@@ -963,18 +1011,79 @@ const AdminClassContent = () => {
               <Switch checked={dayIsExtra} onCheckedChange={setDayIsExtra} />
             </div>
 
-            {/* Meeting Link */}
-            <div className="space-y-2">
-              <Label htmlFor="dayMeetingLink" className="flex items-center gap-2">
-                <Link2 className="w-4 h-4" />
-                Meeting Link (optional)
-              </Label>
-              <Input 
-                id="dayMeetingLink" 
-                placeholder="https://meet.google.com/... or Zoom link"
-                value={dayMeetingLink}
-                onChange={(e) => setDayMeetingLink(e.target.value)}
-              />
+            {/* Zoom Meeting Integration */}
+            <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Video className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <Label className="text-blue-700 dark:text-blue-300 font-medium">Zoom Meeting</Label>
+              </div>
+              
+              {!dayMeetingLink ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Create a Zoom meeting with unique student links (prevents link sharing)
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2 border-blue-300 hover:bg-blue-100 dark:border-blue-700 dark:hover:bg-blue-900/50"
+                    onClick={() => {
+                      if (editingDay) {
+                        handleCreateZoomMeeting(editingDay.id);
+                      } else {
+                        toast.error('Please save the class day first, then edit to add Zoom');
+                      }
+                    }}
+                    disabled={creatingZoomMeeting || !dayDate || !dayStartTime || !editingDay}
+                  >
+                    {creatingZoomMeeting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating Zoom Meeting...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="w-4 h-4" />
+                        Create Zoom Meeting
+                      </>
+                    )}
+                  </Button>
+                  {!editingDay && (
+                    <p className="text-xs text-amber-600">
+                      Save this day first, then edit it to create a Zoom meeting
+                    </p>
+                  )}
+                  {(!dayDate || !dayStartTime) && editingDay && (
+                    <p className="text-xs text-amber-600">
+                      Set date and start time first
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      value={dayMeetingLink}
+                      onChange={(e) => setDayMeetingLink(e.target.value)}
+                      placeholder="Meeting link"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDayMeetingLink('')}
+                      className="shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-success flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Meeting created - each student will get a unique join link
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Notify Students Toggle */}
@@ -983,7 +1092,7 @@ const AdminClassContent = () => {
                 <div>
                   <Label className="text-primary">Notify Students</Label>
                   <p className="text-sm text-muted-foreground">
-                    Send SMS + in-app notification with the link
+                    Send SMS + in-app notification about the class
                   </p>
                 </div>
                 <Switch 

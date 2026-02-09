@@ -2,3 +2,9 @@ project_id = "yukwsbpyjgmfdbqmgxtq"
 
 [functions.download-paper-attachment]
 verify_jwt = false
+
+[functions.create-zoom-meeting]
+verify_jwt = false
+
+[functions.register-zoom-meeting]
+verify_jwt = false

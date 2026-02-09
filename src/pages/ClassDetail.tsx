@@ -50,6 +50,7 @@ const ClassDetail = () => {
   const [enrollCode, setEnrollCode] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
   const [viewingNotes, setViewingNotes] = useState<{ title: string; notes: string } | null>(null);
+  const [joiningMeeting, setJoiningMeeting] = useState<string | null>(null);
 
   // Fetch class details
   const { data: classData, isLoading: classLoading } = useQuery({
@@ -512,8 +513,43 @@ const ClassDetail = () => {
                             Extra Session
                           </Badge>
                         )}
-                        {/* Join Meeting Button - only for paid students */}
-                        {isPaid && day.meeting_link && (
+                        {/* Join Meeting Button - only for paid students with Zoom meeting */}
+                        {isPaid && day.meeting_link && day.zoom_meeting_id && (
+                          <Button 
+                            size="sm" 
+                            className="gap-1.5"
+                            disabled={joiningMeeting === day.id}
+                            onClick={async () => {
+                              setJoiningMeeting(day.id);
+                              try {
+                                // Get unique join link via Zoom registration
+                                const { data, error } = await supabase.functions.invoke('register-zoom-meeting', {
+                                  body: { classDayId: day.id },
+                                });
+                                
+                                if (error) throw error;
+                                if (data.error) throw new Error(data.error);
+                                
+                                // Open the unique join link
+                                window.open(data.joinUrl, '_blank');
+                              } catch (err: any) {
+                                console.error('Join meeting error:', err);
+                                toast.error(err.message || 'Failed to join meeting');
+                              } finally {
+                                setJoiningMeeting(null);
+                              }
+                            }}
+                          >
+                            {joiningMeeting === day.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Video className="w-4 h-4" />
+                            )}
+                            Join
+                          </Button>
+                        )}
+                        {/* Regular meeting link (non-Zoom) */}
+                        {isPaid && day.meeting_link && !day.zoom_meeting_id && (
                           <Button 
                             size="sm" 
                             className="gap-1.5"

@@ -59,6 +59,8 @@ export type Database = {
           meeting_link_notified_at: string | null
           start_time: string | null
           title: string
+          zoom_join_url: string | null
+          zoom_meeting_id: string | null
         }
         Insert: {
           class_month_id: string
@@ -74,6 +76,8 @@ export type Database = {
           meeting_link_notified_at?: string | null
           start_time?: string | null
           title: string
+          zoom_join_url?: string | null
+          zoom_meeting_id?: string | null
         }
         Update: {
           class_month_id?: string
@@ -89,6 +93,8 @@ export type Database = {
           meeting_link_notified_at?: string | null
           start_time?: string | null
           title?: string
+          zoom_join_url?: string | null
+          zoom_meeting_id?: string | null
         }
         Relationships: [
           {
@@ -1361,6 +1367,41 @@ export type Database = {
           variables?: string[] | null
         }
         Relationships: []
+      }
+      student_meeting_links: {
+        Row: {
+          class_day_id: string
+          created_at: string
+          id: string
+          join_url: string
+          registrant_id: string
+          user_id: string
+        }
+        Insert: {
+          class_day_id: string
+          created_at?: string
+          id?: string
+          join_url: string
+          registrant_id: string
+          user_id: string
+        }
+        Update: {
+          class_day_id?: string
+          created_at?: string
+          id?: string
+          join_url?: string
+          registrant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_meeting_links_class_day_id_fkey"
+            columns: ["class_day_id"]
+            isOneToOne: false
+            referencedRelation: "class_days"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_notification_reads: {
         Row: {
