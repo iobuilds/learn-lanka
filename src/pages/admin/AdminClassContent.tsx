@@ -17,7 +17,8 @@ import {
   Send,
   Bell,
   CheckCircle,
-  Circle
+  Circle,
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import ClassPapersManager from '@/components/admin/ClassPapersManager';
 import LessonAttachmentsManager from '@/components/admin/LessonAttachmentsManager';
+import PrivateClassEnrollmentsManager from '@/components/admin/PrivateClassEnrollmentsManager';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -537,6 +539,12 @@ const AdminClassContent = () => {
                 <ClipboardList className="w-4 h-4" />
                 Papers
               </TabsTrigger>
+              {classData.is_private && (
+                <TabsTrigger value="enrollments" className="gap-2">
+                  <Users className="w-4 h-4" />
+                  Enrollments
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Schedule Tab */}
@@ -760,6 +768,16 @@ const AdminClassContent = () => {
             <TabsContent value="papers" className="space-y-4">
               <ClassPapersManager classId={id!} classTitle={classData.title} />
             </TabsContent>
+
+            {/* Enrollments Tab - only for private classes */}
+            {classData.is_private && (
+              <TabsContent value="enrollments" className="space-y-4">
+                <PrivateClassEnrollmentsManager 
+                  classId={id!} 
+                  className={classData.title}
+                />
+              </TabsContent>
+            )}
           </Tabs>
         )}
       </div>
