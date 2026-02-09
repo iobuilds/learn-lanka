@@ -57,41 +57,26 @@ async function getZoomAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-// Returns { userId, isLicensed } so we know whether registration is available
+// Returns { userId, isLicensed } using /users/me (no admin scope needed)
 async function getZoomHostUser(
   accessToken: string
 ): Promise<{ userId: string; isLicensed: boolean }> {
-  const resp = await fetch(
-    "https://api.zoom.us/v2/users?status=active&page_size=100",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
+  const resp = await fetch("https://api.zoom.us/v2/users/me", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
 
   if (!resp.ok) {
     const t = await resp.text();
-    throw new Error(`Failed to list Zoom users [${resp.status}]: ${t}`);
+    throw new Error(`Failed to get Zoom user [${resp.status}]: ${t}`);
   }
 
-  const data = await resp.json();
-  const users = (data?.users || []) as ZoomUser[];
-
-  // Try to find a licensed user first
-  const licensed = users.find((u) => u.type === 2 || u.type === 3);
-  if (licensed?.id) {
-    return { userId: licensed.id, isLicensed: true };
-  }
-
-  // Fall back to any active user (basic)
-  const basic = users.find((u) => u.type === 1);
-  if (basic?.id) {
-    return { userId: basic.id, isLicensed: false };
-  }
-
-  throw new Error("No active Zoom users found in this account.");
+  const user = await resp.json();
+  // type: 1 = Basic, 2 = Licensed, 3 = On-prem
+  const isLicensed = user.type === 2 || user.type === 3;
+  return { userId: user.id, isLicensed };
 }
 
 serve(async (req) => {
