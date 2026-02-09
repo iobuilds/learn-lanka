@@ -31,7 +31,8 @@ const Login = () => {
     try {
       // Format phone for email-like login
       const formattedPhone = phone.replace(/\D/g, '');
-      const phoneEmail = `${formattedPhone}@phone.ict.alstudent.lk`;
+      const phoneEmail = `${formattedPhone}@phone.alict.lk`;
+
 
       const { error } = await supabase.auth.signInWithPassword({
         email: phoneEmail,
