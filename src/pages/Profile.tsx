@@ -14,7 +14,10 @@ import {
   BookOpen,
   CreditCard,
   Loader2,
-  Camera
+  Camera,
+  Tag,
+  Copy,
+  CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import EditProfileDialog from '@/components/profile/EditProfileDialog';
+import { format } from 'date-fns';
 
 const Profile = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -68,6 +72,60 @@ const Profile = () => {
     },
     enabled: !!user,
   });
+
+  // Fetch available coupons (not yet used by this user)
+  const { data: availableCoupons = [] } = useQuery({
+    queryKey: ['available-coupons', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      // Get all active coupons
+      const { data: coupons, error: couponsError } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('is_active', true);
+      
+      if (couponsError) throw couponsError;
+      
+      // Get user's used coupons
+      const { data: usedCoupons, error: usedError } = await supabase
+        .from('coupon_usages')
+        .select('coupon_id')
+        .eq('user_id', user.id);
+      
+      if (usedError) throw usedError;
+      
+      const usedCouponIds = new Set(usedCoupons?.map(u => u.coupon_id) || []);
+      const now = new Date();
+      
+      // Filter available coupons
+      return (coupons || []).filter(coupon => {
+        // Not already used
+        if (usedCouponIds.has(coupon.id)) return false;
+        
+        // Not expired
+        if (coupon.valid_until && new Date(coupon.valid_until) < now) return false;
+        
+        // Already valid (or no start date)
+        if (coupon.valid_from && new Date(coupon.valid_from) > now) return false;
+        
+        // Not exceeded max uses
+        if (coupon.max_uses && coupon.used_count >= coupon.max_uses) return false;
+        
+        return true;
+      });
+    },
+    enabled: !!user,
+  });
+
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const handleCopyCoupon = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    toast.success('Coupon code copied!');
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
 
   // Extract just phone number from synthetic email
   const getPhoneDisplay = () => {
@@ -316,6 +374,59 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Available Coupons */}
+        {availableCoupons.length > 0 && (
+          <Card className="card-elevated">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Tag className="w-5 h-5 text-success" />
+                Available Coupons
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {availableCoupons.map((coupon) => (
+                <div 
+                  key={coupon.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-success/5 border border-success/20"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-success">{coupon.code}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {coupon.discount_type === 'PERCENT' 
+                          ? `${coupon.discount_value}% off` 
+                          : coupon.discount_type === 'FULL' 
+                            ? 'Free' 
+                            : `Rs. ${coupon.discount_value} off`}
+                      </Badge>
+                    </div>
+                    {coupon.valid_until && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Expires: {format(new Date(coupon.valid_until), 'MMM d, yyyy')}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCopyCoupon(coupon.code)}
+                    className="shrink-0"
+                  >
+                    {copiedCode === coupon.code ? (
+                      <CheckCircle className="w-4 h-4 text-success" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Use these codes at checkout to get discounts
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Links */}
         <Card className="card-elevated">
