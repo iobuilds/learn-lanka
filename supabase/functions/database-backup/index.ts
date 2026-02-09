@@ -78,7 +78,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action } = await req.json();
+    // Parse request body ONCE (can only be consumed once)
+    const body = await req.json();
+    const { action, backupData } = body;
 
     if (action === 'backup') {
       const backup: Record<string, any[]> = {
@@ -109,7 +111,6 @@ Deno.serve(async (req) => {
       );
 
     } else if (action === 'restore') {
-      const { backupData } = await req.json();
 
       if (!backupData || !backupData._meta) {
         return new Response(
