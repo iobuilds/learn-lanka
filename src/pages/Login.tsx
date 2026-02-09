@@ -87,7 +87,7 @@ const Login = () => {
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <Input
                     type="tel"
-                    placeholder="07X XXX XXXX"
+                    placeholder="07XXXXXXXX"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="pl-10 h-12 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
@@ -154,25 +154,32 @@ const Login = () => {
               </div>
             </form>
 
-            {/* Footer Links */}
+            {/* Papers Button */}
             <div className="mt-6 pt-6 border-t border-slate-200">
-              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
-                <Link to="/papers" className="text-slate-500 hover:text-blue-600 transition-colors">
-                  Papers
-                </Link>
-                <Link to="/contact" className="text-slate-500 hover:text-blue-600 transition-colors">
-                  Contact Us
-                </Link>
-                <Link to="/privacy-policy" className="text-slate-500 hover:text-blue-600 transition-colors">
-                  Privacy Policy
-                </Link>
-                <Link to="/terms" className="text-slate-500 hover:text-blue-600 transition-colors">
-                  Terms
-                </Link>
-                <Link to="/refund-policy" className="text-slate-500 hover:text-blue-600 transition-colors">
-                  Refund Policy
-                </Link>
-              </div>
+              <Link to="/papers" className="block">
+                <Button variant="outline" className="w-full">
+                  Browse Past Papers
+                </Button>
+              </Link>
+            </div>
+
+            {/* Footer Links */}
+            <div className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <Link to="/contact" className="hover:text-blue-600 transition-colors">
+                Contact Us
+              </Link>
+              <span>•</span>
+              <Link to="/privacy-policy" className="hover:text-blue-600 transition-colors">
+                Privacy
+              </Link>
+              <span>•</span>
+              <Link to="/terms" className="hover:text-blue-600 transition-colors">
+                Terms
+              </Link>
+              <span>•</span>
+              <Link to="/refund-policy" className="hover:text-blue-600 transition-colors">
+                Refund
+              </Link>
             </div>
           </div>
         </div>
@@ -180,9 +187,8 @@ const Login = () => {
 
       {/* Footer */}
       <footer className="py-6 px-4 text-center">
-        <p className="text-slate-400 text-sm">
-          © {new Date().getFullYear()} A/L ICT. All rights reserved.
-          © {new Date().getFullYear()} IO Builds. All rights reserved.
+        <p className="text-slate-400 text-xs">
+          © {new Date().getFullYear()} All rights reserved. A project from IO Builds LLC
         </p>
       </footer>
     </div>

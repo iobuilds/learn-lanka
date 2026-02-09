@@ -275,7 +275,7 @@ const Register = () => {
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="07X XXX XXXX"
+                      placeholder="07XXXXXXXX"
                       value={phone}
                       onChange={(e) => {
                         setPhone(e.target.value);

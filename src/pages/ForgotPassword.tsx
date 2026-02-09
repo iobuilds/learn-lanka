@@ -199,7 +199,7 @@ const ForgotPassword = () => {
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="07X XXX XXXX"
+                      placeholder="07XXXXXXXX"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="pl-10 h-12 bg-slate-50 border-slate-200"
