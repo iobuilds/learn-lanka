@@ -80,9 +80,13 @@ const Dashboard = () => {
   // Fetch rank paper attempt statuses
   const { data: paperStatuses = [] } = useRankPaperStatus();
 
-  // Get payment status for a class
-  const getPaymentStatus = (classId: string): 'PAID' | 'PENDING' | 'UNPAID' => {
-    // ref_id format for class payments: classId-yearMonth
+  // Get payment status for a class (considers private vs public classes)
+  const getPaymentStatus = (classId: string, isPrivate: boolean, paymentReceivedAt: string | null): 'PAID' | 'PENDING' | 'UNPAID' | 'ENROLLED' => {
+    // For private classes, show "Enrolled" status (no monthly payment tracking)
+    if (isPrivate) {
+      return paymentReceivedAt ? 'PAID' : 'ENROLLED';
+    }
+    // For public classes, check monthly payment
     const expectedRefId = `${classId}-${currentYearMonth}`;
     const payment = payments.find(p => p.ref_id === expectedRefId);
     if (!payment) return 'UNPAID';
@@ -96,7 +100,10 @@ const Dashboard = () => {
     return paperStatuses.find(s => s.paperId === paperId);
   };
 
-  const paidCount = enrollments.filter(e => getPaymentStatus(e.class_id) === 'PAID').length;
+  const paidCount = enrollments.filter(e => {
+    const cls = e.classes as any;
+    return getPaymentStatus(e.class_id, cls?.is_private || false, (e as any).payment_received_at) === 'PAID';
+  }).length;
   const completedPaperCount = paperStatuses.filter(s => s.status === 'SUBMITTED' || s.status === 'MARKED').length;
 
   if (enrollmentsLoading) {
@@ -213,7 +220,12 @@ const Dashboard = () => {
             <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
               {enrollments.map((enrollment) => {
                 const cls = enrollment.classes as any;
-                const paymentStatus = getPaymentStatus(enrollment.class_id);
+                const paymentStatus = getPaymentStatus(
+                  enrollment.class_id, 
+                  cls?.is_private || false, 
+                  (enrollment as any).payment_received_at
+                );
+                const isPrivateClass = cls?.is_private;
                 return (
                   <Card key={enrollment.id} className="card-elevated hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2 p-3 sm:p-4 sm:pb-2">
@@ -225,7 +237,8 @@ const Dashboard = () => {
                             "text-xs shrink-0",
                             paymentStatus === 'PAID' && 'badge-paid',
                             paymentStatus === 'PENDING' && 'badge-pending',
-                            paymentStatus === 'UNPAID' && 'badge-unpaid'
+                            paymentStatus === 'UNPAID' && 'badge-unpaid',
+                            paymentStatus === 'ENROLLED' && 'bg-primary/10 text-primary border-primary/20'
                           )}
                         >
                           {paymentStatus}

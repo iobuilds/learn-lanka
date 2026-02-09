@@ -94,6 +94,7 @@ export type Database = {
           class_id: string
           enrolled_at: string
           id: string
+          payment_amount: number | null
           payment_received_at: string | null
           status: string
           user_id: string
@@ -103,6 +104,7 @@ export type Database = {
           class_id: string
           enrolled_at?: string
           id?: string
+          payment_amount?: number | null
           payment_received_at?: string | null
           status?: string
           user_id: string
@@ -112,6 +114,7 @@ export type Database = {
           class_id?: string
           enrolled_at?: string
           id?: string
+          payment_amount?: number | null
           payment_received_at?: string | null
           status?: string
           user_id?: string

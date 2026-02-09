@@ -26,6 +26,7 @@ interface EnrollmentWithProfile {
   status: string;
   enrolled_at: string;
   payment_received_at: string | null;
+  payment_amount: number | null;
   admin_note: string | null;
   profile: {
     first_name: string;
@@ -43,6 +44,7 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
   const queryClient = useQueryClient();
   const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithProfile | null>(null);
   const [paymentDate, setPaymentDate] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
   const [adminNote, setAdminNote] = useState('');
 
   // Fetch enrollments with profiles
@@ -58,6 +60,7 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
           status,
           enrolled_at,
           payment_received_at,
+          payment_amount,
           admin_note
         `)
         .eq('class_id', classId)
@@ -92,6 +95,7 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
         .from('class_enrollments')
         .update({
           payment_received_at: paymentDate ? new Date(paymentDate).toISOString() : null,
+          payment_amount: paymentAmount ? parseInt(paymentAmount) : null,
           admin_note: adminNote || null,
         })
         .eq('id', editingEnrollment.id);
@@ -112,12 +116,14 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
     setPaymentDate(enrollment.payment_received_at 
       ? new Date(enrollment.payment_received_at).toISOString().slice(0, 10) 
       : '');
+    setPaymentAmount(enrollment.payment_amount?.toString() || '');
     setAdminNote(enrollment.admin_note || '');
   };
 
   const closeDialog = () => {
     setEditingEnrollment(null);
     setPaymentDate('');
+    setPaymentAmount('');
     setAdminNote('');
   };
 
@@ -171,10 +177,17 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
                   
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {enrollment.payment_received_at ? (
-                      <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
-                        <Check className="w-3 h-3" />
-                        {format(new Date(enrollment.payment_received_at), 'MMM d, yyyy')}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
+                          <Check className="w-3 h-3" />
+                          {format(new Date(enrollment.payment_received_at), 'MMM d, yyyy')}
+                        </Badge>
+                        {enrollment.payment_amount && (
+                          <span className="text-xs text-muted-foreground">
+                            Rs. {enrollment.payment_amount.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <Badge variant="outline" className="bg-muted gap-1">
                         <Clock className="w-3 h-3" />
@@ -211,24 +224,36 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="paymentDate">Payment Received Date</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="paymentDate"
-                  type="date"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="flex-1"
-                />
-                <Button variant="outline" onClick={markPaidToday}>
-                  Today
-                </Button>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="paymentDate">Payment Date</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="paymentDate"
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                This date will be shown to the student for their reference
-              </p>
+              <div className="space-y-2">
+                <Label htmlFor="paymentAmount">Amount (Rs.)</Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  placeholder="e.g., 5000"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+              </div>
             </div>
+            <Button variant="outline" size="sm" onClick={markPaidToday} className="w-full">
+              Set Today's Date
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              This payment info will be shown to the student for their reference
+            </p>
             <div className="space-y-2">
               <Label htmlFor="adminNote">Admin Note (optional)</Label>
               <Textarea
