@@ -224,13 +224,18 @@ const Classes = () => {
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col justify-end p-3 sm:p-4 pt-0 sm:pt-0">
                     <div className="space-y-3 sm:space-y-4">
+                      {/* Price Display - Prominent */}
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl sm:text-2xl font-bold text-primary">
+                          Rs. {cls.monthly_fee_amount.toLocaleString()}
+                        </span>
+                        <span className="text-sm text-muted-foreground">/month</span>
+                      </div>
+
                       {/* Class Info */}
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <Badge variant="secondary" className="text-xs">
                           Grade {cls.grade_min === cls.grade_max ? cls.grade_min : `${cls.grade_min}-${cls.grade_max}`}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          Rs. {cls.monthly_fee_amount.toLocaleString()}/mo
                         </Badge>
                         {isEnrolled && (
                           <Badge className="bg-success/10 text-success border-success/20 text-xs">
