@@ -340,6 +340,44 @@ export type Database = {
         }
         Relationships: []
       }
+      enrollment_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          enrollment_id: string
+          id: string
+          note: string | null
+          payment_date: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          enrollment_id: string
+          id?: string
+          note?: string | null
+          payment_date: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          enrollment_id?: string
+          id?: string
+          note?: string | null
+          payment_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollment_payments_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "class_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_attachments: {
         Row: {
           attachment_type: string
