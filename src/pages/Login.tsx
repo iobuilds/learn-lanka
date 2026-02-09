@@ -72,18 +72,18 @@ const Login = () => {
 
         {/* Right Side - Login Form */}
         <div className="w-full max-w-sm">
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-slate-900 text-center mb-2">
+          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur rounded-2xl p-8 shadow-2xl dark:text-slate-100">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
               Welcome Back
             </h2>
-            <p className="text-slate-500 text-center text-sm mb-6">
+            <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-6">
               Sign in to continue learning
             </p>
 
             <form onSubmit={handleLogin} className="space-y-5">
               {/* Phone Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Phone Number</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <Input
@@ -91,7 +91,7 @@ const Login = () => {
                     placeholder="07XXXXXXXX"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="pl-10 h-12 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                    className="pl-10 h-12 bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -99,7 +99,7 @@ const Login = () => {
 
               {/* Password Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Password</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <Input
@@ -107,7 +107,7 @@ const Login = () => {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                    className="pl-10 pr-10 h-12 bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:ring-blue-500"
                     required
                   />
                   <button
@@ -147,7 +147,7 @@ const Login = () => {
               </Button>
 
               {/* Register Link */}
-              <div className="text-center text-sm text-slate-600">
+              <div className="text-center text-sm text-slate-600 dark:text-slate-400">
                 Don't have an account?{' '}
                 <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold">
                   Create Account
@@ -158,14 +158,14 @@ const Login = () => {
             {/* Papers Button */}
             <div className="mt-6 pt-6 border-t border-slate-200">
               <Link to="/papers" className="block">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full dark:border-slate-600 dark:text-slate-300">
                   Browse Past Papers
                 </Button>
               </Link>
             </div>
 
             {/* Footer Links */}
-            <div className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <div className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               <Link to="/contact" className="hover:text-blue-600 transition-colors">
                 Contact Us
               </Link>
