@@ -1,11 +1,11 @@
-import { Calendar, Clock, BookOpen, ChevronLeft, ChevronRight, MessageCircle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, BookOpen, ChevronLeft, ChevronRight, Play, CheckCircle2, Timer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, isPast, isFuture } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isToday, isBefore, isAfter } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,6 +29,15 @@ interface ClassDay {
 
 const ClassScheduleChat = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const dateRange = {
     start: startOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -70,68 +79,97 @@ const ClassScheduleChat = () => {
   const navigateNext = () => setCurrentDate(addWeeks(currentDate, 1));
   const goToToday = () => setCurrentDate(new Date());
 
-  const formatTime = (startTime: string | null, endTime: string | null) => {
-    if (!startTime) return null;
-    const formatT = (t: string) => {
-      const [h, m] = t.split(':');
-      const hour = parseInt(h);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      return `${hour % 12 || 12}:${m} ${ampm}`;
-    };
-    return endTime ? `${formatT(startTime)} - ${formatT(endTime)}` : formatT(startTime);
+  const formatTime12h = (time: string | null) => {
+    if (!time) return '';
+    const [h, m] = time.split(':');
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    return `${hour % 12 || 12}:${m} ${ampm}`;
   };
 
-  const getStatusInfo = (day: ClassDay) => {
-    const dayDate = parseISO(day.date);
-    if (day.is_conducted) {
-      return { status: 'completed', label: 'Completed', color: 'text-success', bgColor: 'bg-success/10', icon: CheckCircle2 };
-    }
-    if (isToday(dayDate)) {
-      return { status: 'today', label: 'Today', color: 'text-primary', bgColor: 'bg-primary/10', icon: MessageCircle };
-    }
-    if (isPast(dayDate)) {
-      return { status: 'missed', label: 'Pending', color: 'text-warning', bgColor: 'bg-warning/10', icon: AlertCircle };
-    }
-    return { status: 'upcoming', label: 'Upcoming', color: 'text-muted-foreground', bgColor: 'bg-muted', icon: Calendar };
+  // Check if a class is currently happening
+  const isClassNow = (day: ClassDay) => {
+    if (!isToday(parseISO(day.date)) || !day.start_time) return false;
+    const now = currentTime;
+    const [startH, startM] = day.start_time.split(':').map(Number);
+    const [endH, endM] = day.end_time ? day.end_time.split(':').map(Number) : [startH + 1, startM];
+    
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    return nowMinutes >= startMinutes && nowMinutes < endMinutes;
   };
 
-  // Group by date
-  const groupedByDate = classDays.reduce((acc, day) => {
-    const dateKey = day.date;
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(day);
-    return acc;
-  }, {} as Record<string, ClassDay[]>);
+  // Check if class is upcoming today
+  const isUpcomingToday = (day: ClassDay) => {
+    if (!isToday(parseISO(day.date)) || !day.start_time || day.is_conducted) return false;
+    const now = currentTime;
+    const [startH, startM] = day.start_time.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return nowMinutes < startMinutes;
+  };
+
+  // Find currently happening class
+  const currentClass = classDays.find(isClassNow);
+  
+  // Find next upcoming class
+  const upcomingClasses = classDays.filter(d => {
+    const dayDate = parseISO(d.date);
+    if (d.is_conducted) return false;
+    if (isToday(dayDate)) return isUpcomingToday(d);
+    return isAfter(dayDate, currentTime);
+  });
+  const nextClass = upcomingClasses[0];
+
+  // Past classes (completed or past date)
+  const pastClasses = classDays.filter(d => {
+    if (d.is_conducted) return true;
+    const dayDate = parseISO(d.date);
+    if (isBefore(dayDate, new Date()) && !isToday(dayDate)) return true;
+    return false;
+  });
 
   return (
     <Card className="card-elevated overflow-hidden">
-      <CardHeader className="pb-2 border-b bg-muted/30">
+      <CardHeader className="pb-3 border-b bg-gradient-to-r from-primary/5 to-transparent">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-primary" />
-            Class Schedule
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-primary" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-success border-2 border-card animate-pulse" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Class Schedule</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {format(currentTime, 'EEEE, MMM d • h:mm a')}
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between mt-3">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigatePrev}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 px-3 text-sm font-medium" onClick={goToToday}>
-              Today
+            <Button variant="outline" size="sm" className="h-8 px-3 text-xs font-medium" onClick={goToToday}>
+              This Week
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigateNext}>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <span className="text-sm font-medium text-muted-foreground">
-            {format(dateRange.start, 'MMM d')} - {format(dateRange.end, 'MMM d, yyyy')}
-          </span>
+          <Badge variant="outline" className="text-xs">
+            {format(dateRange.start, 'MMM d')} - {format(dateRange.end, 'MMM d')}
+          </Badge>
         </div>
       </CardHeader>
 
-      <ScrollArea className="h-[420px]">
-        <CardContent className="p-4">
+      <ScrollArea className="h-[400px]">
+        <CardContent className="p-4 space-y-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -142,118 +180,153 @@ const ClassScheduleChat = () => {
                 <Calendar className="w-8 h-8 text-muted-foreground" />
               </div>
               <p className="text-muted-foreground font-medium">No classes this week</p>
-              <p className="text-sm text-muted-foreground/70 mt-1">Schedule classes to see them here</p>
             </div>
           ) : (
-            <div className="relative">
-              {/* Timeline line */}
-              <div className="absolute left-5 top-2 bottom-2 w-0.5 bg-border" />
-
-              <div className="space-y-4">
-                {Object.entries(groupedByDate).map(([dateStr, days]) => {
-                  const dayDate = parseISO(dateStr);
-                  const isTodayDate = isToday(dayDate);
-
-                  return (
-                    <div key={dateStr} className="relative">
-                      {/* Date bubble - like a chat timestamp */}
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 z-10",
-                          isTodayDate 
-                            ? "bg-primary text-primary-foreground ring-4 ring-primary/20" 
-                            : isPast(dayDate) 
-                              ? "bg-muted text-muted-foreground" 
-                              : "bg-secondary text-secondary-foreground"
-                        )}>
-                          {format(dayDate, 'd')}
+            <>
+              {/* NOW - Currently Happening */}
+              {currentClass && (
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-success/20 text-success">
+                      <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                      <span className="text-xs font-semibold uppercase tracking-wide">Live Now</span>
+                    </div>
+                  </div>
+                  <Link to={`/admin/classes/${currentClass.class_month?.classes?.id}/content`}>
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-success/20 via-success/10 to-transparent border border-success/30 hover:shadow-lg transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center">
+                          <Play className="w-6 h-6 text-success fill-success" />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "text-sm font-semibold",
-                            isTodayDate && "text-primary"
-                          )}>
-                            {format(dayDate, 'EEEE')}
-                          </span>
-                          {isTodayDate && (
-                            <Badge className="bg-primary/10 text-primary border-0 text-xs">
-                              Today
-                            </Badge>
-                          )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-foreground truncate">
+                            {currentClass.class_month?.classes?.title}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate">{currentClass.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Clock className="w-3 h-3 text-success" />
+                            <span className="text-xs text-success font-medium">
+                              {formatTime12h(currentClass.start_time)} - {formatTime12h(currentClass.end_time)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* Class cards - like chat messages */}
-                      <div className="ml-12 space-y-2">
-                        {days.map((day) => {
-                          const statusInfo = getStatusInfo(day);
-                          const StatusIcon = statusInfo.icon;
-
-                          return (
-                            <Link
-                              key={day.id}
-                              to={`/admin/classes/${day.class_month?.classes?.id}/content`}
-                              className="block group"
-                            >
-                              <div className={cn(
-                                "relative p-3 rounded-2xl rounded-tl-sm transition-all duration-200",
-                                "hover:shadow-md hover:-translate-y-0.5",
-                                statusInfo.bgColor,
-                                day.is_conducted && "opacity-75"
-                              )}>
-                                {/* Message tail */}
-                                <div className={cn(
-                                  "absolute -left-2 top-2 w-3 h-3 rotate-45",
-                                  statusInfo.bgColor
-                                )} />
-
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <BookOpen className={cn("w-4 h-4 shrink-0", statusInfo.color)} />
-                                      <p className="font-semibold text-foreground truncate">
-                                        {day.class_month?.classes?.title}
-                                      </p>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground truncate pl-6">
-                                      {day.title}
-                                    </p>
-                                  </div>
-
-                                  <div className="flex flex-col items-end gap-1 shrink-0">
-                                    {day.start_time && (
-                                      <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />
-                                        {formatTime(day.start_time, day.end_time)}
-                                      </span>
-                                    )}
-                                    <div className="flex items-center gap-1">
-                                      <StatusIcon className={cn("w-3.5 h-3.5", statusInfo.color)} />
-                                      <span className={cn("text-xs font-medium", statusInfo.color)}>
-                                        {statusInfo.label}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Tags */}
-                                {day.is_extra && (
-                                  <div className="mt-2 pl-6">
-                                    <Badge variant="outline" className="text-xs bg-accent/10 text-accent border-accent/30">
-                                      Extra Class
-                                    </Badge>
-                                  </div>
-                                )}
-                              </div>
-                            </Link>
-                          );
-                        })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </Link>
+                </div>
+              )}
+
+              {/* NEXT UP */}
+              {nextClass && !isClassNow(nextClass) && (
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-primary/20 text-primary">
+                      <Timer className="w-3 h-3" />
+                      <span className="text-xs font-semibold uppercase tracking-wide">Next Up</span>
+                    </div>
+                  </div>
+                  <Link to={`/admin/classes/${nextClass.class_month?.classes?.id}/content`}>
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 hover:shadow-lg transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <BookOpen className="w-6 h-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-foreground truncate">
+                            {nextClass.class_month?.classes?.title}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate">{nextClass.title}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-xs text-primary font-medium">
+                              {format(parseISO(nextClass.date), 'EEE, MMM d')}
+                            </span>
+                            {nextClass.start_time && (
+                              <span className="text-xs text-muted-foreground">
+                                {formatTime12h(nextClass.start_time)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {nextClass.is_extra && (
+                          <Badge className="bg-accent/20 text-accent border-0 text-xs shrink-0">
+                            Extra
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              )}
+
+              {/* UPCOMING TIMELINE */}
+              {upcomingClasses.length > 1 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Upcoming</span>
+                  </div>
+                  <div className="space-y-2 pl-2 border-l-2 border-dashed border-border">
+                    {upcomingClasses.slice(1, 5).map((day) => (
+                      <Link
+                        key={day.id}
+                        to={`/admin/classes/${day.class_month?.classes?.id}/content`}
+                        className="block"
+                      >
+                        <div className="relative pl-4 py-2 hover:bg-muted/50 rounded-r-lg transition-colors">
+                          <div className="absolute -left-[9px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-background border-2 border-border" />
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {day.class_month?.classes?.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(parseISO(day.date), 'EEE, MMM d')}
+                                {day.start_time && ` • ${formatTime12h(day.start_time)}`}
+                              </p>
+                            </div>
+                            {day.is_extra && (
+                              <Badge variant="outline" className="text-xs shrink-0">Extra</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* COMPLETED */}
+              {pastClasses.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-4 h-4 text-success" />
+                    <span className="text-sm font-medium text-muted-foreground">Completed</span>
+                    <Badge variant="secondary" className="text-xs">{pastClasses.length}</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    {pastClasses.slice(0, 3).map((day) => (
+                      <Link
+                        key={day.id}
+                        to={`/admin/classes/${day.class_month?.classes?.id}/content`}
+                        className="block"
+                      >
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors opacity-70">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                            <p className="text-sm text-muted-foreground truncate">
+                              {day.class_month?.classes?.title}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {format(parseISO(day.date), 'MMM d')}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </ScrollArea>
