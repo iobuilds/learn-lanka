@@ -18,6 +18,16 @@ Deno.serve(async (req) => {
     const { action } = await req.json();
 
     if (action === 'seed') {
+      // Check if data already exists
+      const { count: classCount } = await supabase.from('classes').select('*', { count: 'exact', head: true });
+      
+      if (classCount && classCount > 0) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Data already exists. Clear the database first before seeding.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Seed Classes
       const classesData = [
         { title: 'A/L ICT Theory 2026', description: 'Complete theory syllabus for A/L ICT', grade_min: 12, grade_max: 13, monthly_fee_amount: 2500, is_private: false },
@@ -28,70 +38,65 @@ Deno.serve(async (req) => {
 
       const { data: classes, error: classError } = await supabase
         .from('classes')
-        .upsert(classesData, { onConflict: 'title' })
+        .insert(classesData)
         .select();
       
       if (classError) throw classError;
 
       // Seed Class Months for each class
       const months = ['2026-01', '2026-02', '2026-03'];
+      const classMonthsData = [];
       for (const cls of classes || []) {
         for (const month of months) {
-          await supabase.from('class_months').upsert({
-            class_id: cls.id,
-            year_month: month
-          }, { onConflict: 'class_id,year_month' });
+          classMonthsData.push({ class_id: cls.id, year_month: month });
         }
       }
+      await supabase.from('class_months').insert(classMonthsData);
 
       // Seed Class Days with times
       const { data: classMonths } = await supabase.from('class_months').select('id, class_id, year_month');
+      const classDaysData = [];
       for (const cm of classMonths || []) {
         const baseDate = new Date(cm.year_month + '-01');
-        const days = [
-          { date: new Date(baseDate.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Lesson 1', start_time: '09:00', end_time: '11:00' },
-          { date: new Date(baseDate.getTime() + 12 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Lesson 2', start_time: '14:00', end_time: '16:00' },
-          { date: new Date(baseDate.getTime() + 19 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Lesson 3', start_time: '09:00', end_time: '11:00' },
-          { date: new Date(baseDate.getTime() + 26 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Revision', start_time: '10:00', end_time: '12:00', is_extra: true },
-        ];
-        for (const day of days) {
-          await supabase.from('class_days').insert({
-            class_month_id: cm.id,
-            ...day
-          });
-        }
+        classDaysData.push(
+          { class_month_id: cm.id, date: new Date(baseDate.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Lesson 1', start_time: '09:00', end_time: '11:00', is_extra: false },
+          { class_month_id: cm.id, date: new Date(baseDate.getTime() + 12 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Lesson 2', start_time: '14:00', end_time: '16:00', is_extra: false },
+          { class_month_id: cm.id, date: new Date(baseDate.getTime() + 19 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Lesson 3', start_time: '09:00', end_time: '11:00', is_extra: false },
+          { class_month_id: cm.id, date: new Date(baseDate.getTime() + 26 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], title: 'Revision', start_time: '10:00', end_time: '12:00', is_extra: true }
+        );
       }
+      await supabase.from('class_days').insert(classDaysData);
 
       // Seed Bank Accounts
-      await supabase.from('bank_accounts').upsert([
+      await supabase.from('bank_accounts').insert([
         { bank_name: 'Bank of Ceylon', account_name: 'ICT Academy', account_number: '1234567890', branch: 'Colombo Main', is_active: true },
         { bank_name: 'Commercial Bank', account_name: 'ICT Academy LTD', account_number: '9876543210', branch: 'Nugegoda', is_active: true },
         { bank_name: 'Sampath Bank', account_name: 'ICT Academy', account_number: '5555666677', branch: 'Maharagama', is_active: false },
-      ], { onConflict: 'account_number' });
+      ]);
 
       // Seed Coupons
-      await supabase.from('coupons').upsert([
+      await supabase.from('coupons').insert([
         { code: 'WELCOME50', discount_type: 'PERCENT', discount_value: 50, is_active: true, max_uses: 100 },
         { code: 'FLAT500', discount_type: 'FIXED', discount_value: 500, is_active: true, max_uses: 50 },
         { code: 'FREEMONTH', discount_type: 'FULL', discount_value: 100, is_active: true, max_uses: 10 },
         { code: 'EXPIRED2025', discount_type: 'PERCENT', discount_value: 20, is_active: false },
-      ], { onConflict: 'code' });
+      ]);
 
       // Seed Shop Products
-      await supabase.from('shop_products').upsert([
+      await supabase.from('shop_products').insert([
         { title: 'ICT Theory Notes - A/L', description: 'Complete theory notes for A/L ICT', type: 'BOTH', price_soft: 500, price_printed: 1500, price_both: 1800, is_active: true },
         { title: 'Past Paper Collection 2020-2025', description: 'All past papers with answers', type: 'SOFT', price_soft: 300, is_active: true },
         { title: 'Programming Exercises Book', description: 'Hands-on programming exercises', type: 'PRINTED', price_printed: 2000, is_active: true },
         { title: 'Quick Revision Cards', description: 'Flash cards for quick revision', type: 'PRINTED', price_printed: 800, is_active: true },
-      ], { onConflict: 'title' });
+      ]);
 
       // Seed Papers
-      await supabase.from('papers').upsert([
+      await supabase.from('papers').insert([
         { title: 'A/L ICT 2024 Paper', paper_type: 'PAST_PAPER', grade: 13, year: 2024, term: 1, subject: 'ICT', medium: 'English', is_free: true, pdf_url: 'https://example.com/paper1.pdf' },
         { title: 'A/L ICT 2023 Paper', paper_type: 'PAST_PAPER', grade: 13, year: 2023, term: 1, subject: 'ICT', medium: 'English', is_free: true, pdf_url: 'https://example.com/paper2.pdf' },
         { title: 'O/L ICT 2024 Model Paper', paper_type: 'MODEL_PAPER', grade: 11, year: 2024, subject: 'ICT', medium: 'Sinhala', is_free: false, pdf_url: 'https://example.com/paper3.pdf' },
         { title: 'Royal College Term Test 2024', paper_type: 'SCHOOL_PAPER', grade: 12, year: 2024, term: 2, school_or_zone: 'Royal College', subject: 'ICT', is_free: false, pdf_url: 'https://example.com/paper4.pdf' },
-      ], { onConflict: 'title' });
+      ]);
 
       // Seed Rank Papers
       const rankPapersData = [
@@ -100,7 +105,7 @@ Deno.serve(async (req) => {
         { title: 'O/L ICT Practice Test', grade: 11, time_limit_minutes: 45, has_mcq: true, has_short_essay: false, has_essay: false, publish_status: 'DRAFT' },
       ];
 
-      const { data: rankPapers } = await supabase.from('rank_papers').upsert(rankPapersData, { onConflict: 'title' }).select();
+      const { data: rankPapers } = await supabase.from('rank_papers').insert(rankPapersData).select();
 
       // Add MCQ questions to rank papers
       for (const paper of rankPapers || []) {
