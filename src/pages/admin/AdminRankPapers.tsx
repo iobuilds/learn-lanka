@@ -281,10 +281,11 @@ const AdminRankPapers = () => {
     },
   });
 
-  // Duplicate paper mutation
+  // Duplicate paper mutation - copies paper, questions, options, and attachments
   const duplicateMutation = useMutation({
     mutationFn: async (paper: RankPaper) => {
-      const { error } = await supabase
+      // Create new paper
+      const { data: newPaper, error: paperError } = await supabase
         .from('rank_papers')
         .insert({
           title: `${paper.title} (Copy)`,
@@ -295,12 +296,76 @@ const AdminRankPapers = () => {
           has_essay: paper.has_essay,
           fee_amount: paper.fee_amount,
           class_id: paper.class_id,
+          essay_pdf_url: paper.essay_pdf_url,
           publish_status: 'DRAFT',
-        });
-      if (error) throw error;
+        })
+        .select()
+        .single();
+      if (paperError) throw paperError;
+
+      // Copy MCQ questions and options
+      const { data: questions } = await supabase
+        .from('rank_mcq_questions')
+        .select('*, rank_mcq_options(*)')
+        .eq('rank_paper_id', paper.id)
+        .order('q_no');
+
+      if (questions && questions.length > 0) {
+        for (const q of questions) {
+          const { data: newQuestion, error: qError } = await supabase
+            .from('rank_mcq_questions')
+            .insert({
+              rank_paper_id: newPaper.id,
+              q_no: q.q_no,
+              question_text: q.question_text,
+              question_image_url: q.question_image_url,
+            })
+            .select()
+            .single();
+          if (qError) throw qError;
+
+          // Copy options for this question
+          if (q.rank_mcq_options && q.rank_mcq_options.length > 0) {
+            const optionsToInsert = q.rank_mcq_options.map((opt: any) => ({
+              question_id: newQuestion.id,
+              option_no: opt.option_no,
+              option_text: opt.option_text,
+              option_image_url: opt.option_image_url,
+              is_correct: opt.is_correct,
+            }));
+            const { error: optError } = await supabase
+              .from('rank_mcq_options')
+              .insert(optionsToInsert);
+            if (optError) throw optError;
+          }
+        }
+      }
+
+      // Copy attachments
+      const { data: attachments } = await supabase
+        .from('rank_paper_attachments')
+        .select('*')
+        .eq('rank_paper_id', paper.id)
+        .order('sort_order');
+
+      if (attachments && attachments.length > 0) {
+        const attachmentsToInsert = attachments.map((att) => ({
+          rank_paper_id: newPaper.id,
+          attachment_type: att.attachment_type,
+          title: att.title,
+          url: att.url,
+          sort_order: att.sort_order,
+        }));
+        const { error: attError } = await supabase
+          .from('rank_paper_attachments')
+          .insert(attachmentsToInsert);
+        if (attError) throw attError;
+      }
+
+      return newPaper;
     },
     onSuccess: () => {
-      toast.success('Paper duplicated!');
+      toast.success('Paper duplicated with all content!');
       queryClient.invalidateQueries({ queryKey: ['admin-rank-papers'] });
     },
     onError: (error: any) => {
