@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import AdminLayout from '@/components/layouts/AdminLayout';
-import ClassScheduleChat from '@/components/admin/ClassScheduleChat';
+import ClassScheduleGantt from '@/components/admin/ClassScheduleGantt';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 
@@ -165,8 +165,8 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        {/* Class Schedule - Chat Style */}
-        <ClassScheduleChat />
+        {/* Class Schedule - Gantt Chart */}
+        <ClassScheduleGantt />
 
         {/* Recent Payments */}
         <Card className="card-elevated">

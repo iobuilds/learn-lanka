@@ -10,6 +10,8 @@ interface SMSRequest {
   targetUsers?: string[]; // user IDs
   classId?: string;
   classDayId?: string; // For class day specific notifications
+  previousMonthOnly?: boolean; // Only send to students who paid in previous month
+  previousMonth?: string; // Format: YYYY-MM
   variables?: Record<string, string>; // Variables to replace in template
 }
 
@@ -43,7 +45,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: SMSRequest = await req.json();
-    const { template_key, targetUsers, classId, classDayId, variables = {} } = body;
+    const { template_key, targetUsers, classId, classDayId, previousMonthOnly, previousMonth, variables = {} } = body;
     
     // If classDayId is provided, fetch class day details for time variables
     let classDayDetails: { date: string; start_time: string | null; end_time: string | null; title: string; class_name: string } | null = null;
@@ -107,18 +109,52 @@ Deno.serve(async (req) => {
         firstName: p.first_name 
       })) || [];
     } else if (classId) {
-      // All enrolled users in a class
+      // Get enrolled users
       const { data: enrollments } = await supabase
         .from('class_enrollments')
         .select('user_id, profiles!inner(id, phone, first_name)')
         .eq('class_id', classId)
         .eq('status', 'ACTIVE');
       
-      phoneNumbers = enrollments?.map((e: any) => ({ 
+      let enrolledUsers = enrollments?.map((e: any) => ({ 
         phone: e.profiles.phone, 
         userId: e.profiles.id, 
         firstName: e.profiles.first_name 
       })) || [];
+
+      // If previousMonthOnly is set, filter to only students who paid last month
+      if (previousMonthOnly && previousMonth && enrolledUsers.length > 0) {
+        // Get the class month for previous month
+        const { data: prevClassMonth } = await supabase
+          .from('class_months')
+          .select('id')
+          .eq('class_id', classId)
+          .eq('year_month', previousMonth)
+          .maybeSingle();
+
+        if (prevClassMonth) {
+          // Get users who have approved payments for that month
+          const { data: paidPayments } = await supabase
+            .from('payments')
+            .select('user_id')
+            .eq('ref_id', prevClassMonth.id)
+            .eq('payment_type', 'CLASS_FEE')
+            .eq('status', 'APPROVED');
+
+          const paidUserIds = new Set(paidPayments?.map(p => p.user_id) || []);
+          
+          // Filter enrolled users to only those who paid
+          enrolledUsers = enrolledUsers.filter(u => paidUserIds.has(u.userId));
+          
+          console.log(`Filtered to ${enrolledUsers.length} users who paid for ${previousMonth}`);
+        } else {
+          // No class month exists for previous month, don't send any SMS
+          console.log(`No class month found for ${previousMonth}, skipping SMS`);
+          enrolledUsers = [];
+        }
+      }
+
+      phoneNumbers = enrolledUsers;
     }
 
     if (phoneNumbers.length === 0) {
