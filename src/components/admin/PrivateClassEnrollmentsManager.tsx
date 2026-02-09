@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Calendar, Check, Loader2, User, Clock } from 'lucide-react';
+import { Check, Loader2, User, Clock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,9 +15,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+
+interface EnrollmentPayment {
+  id: string;
+  amount: number;
+  payment_date: string;
+  note: string | null;
+  created_at: string;
+}
 
 interface EnrollmentWithProfile {
   id: string;
@@ -25,14 +39,13 @@ interface EnrollmentWithProfile {
   class_id: string;
   status: string;
   enrolled_at: string;
-  payment_received_at: string | null;
-  payment_amount: number | null;
   admin_note: string | null;
   profile: {
     first_name: string;
     last_name: string;
     phone: string;
   } | null;
+  payments: EnrollmentPayment[];
 }
 
 interface Props {
@@ -41,94 +54,150 @@ interface Props {
 }
 
 const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentWithProfile | null>(null);
+  const [selectedEnrollment, setSelectedEnrollment] = useState<EnrollmentWithProfile | null>(null);
+  const [showAddPayment, setShowAddPayment] = useState(false);
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
   const [adminNote, setAdminNote] = useState('');
+  const [expandedEnrollments, setExpandedEnrollments] = useState<Set<string>>(new Set());
 
-  // Fetch enrollments with profiles
+  // Fetch enrollments with profiles and payments
   const { data: enrollments = [], isLoading } = useQuery({
     queryKey: ['private-class-enrollments', classId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('class_enrollments')
-        .select(`
-          id,
-          user_id,
-          class_id,
-          status,
-          enrolled_at,
-          payment_received_at,
-          payment_amount,
-          admin_note
-        `)
+        .select('id, user_id, class_id, status, enrolled_at, admin_note')
         .eq('class_id', classId)
         .eq('status', 'ACTIVE')
         .order('enrolled_at', { ascending: false });
       
       if (error) throw error;
 
-      // Fetch profiles for each enrollment
-      const enrollmentsWithProfiles: EnrollmentWithProfile[] = [];
+      // Fetch profiles and payments for each enrollment
+      const enrollmentsWithData: EnrollmentWithProfile[] = [];
       for (const enrollment of data || []) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('first_name, last_name, phone')
-          .eq('id', enrollment.user_id)
-          .single();
+        const [profileResult, paymentsResult] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('first_name, last_name, phone')
+            .eq('id', enrollment.user_id)
+            .single(),
+          supabase
+            .from('enrollment_payments')
+            .select('*')
+            .eq('enrollment_id', enrollment.id)
+            .order('payment_date', { ascending: false })
+        ]);
         
-        enrollmentsWithProfiles.push({
+        enrollmentsWithData.push({
           ...enrollment,
-          profile: profile || null,
+          profile: profileResult.data || null,
+          payments: paymentsResult.data || [],
         });
       }
 
-      return enrollmentsWithProfiles;
+      return enrollmentsWithData;
     },
   });
 
-  const updateMutation = useMutation({
+  const addPaymentMutation = useMutation({
     mutationFn: async () => {
-      if (!editingEnrollment) return;
+      if (!selectedEnrollment || !paymentDate || !paymentAmount) return;
       const { error } = await supabase
-        .from('class_enrollments')
-        .update({
-          payment_received_at: paymentDate ? new Date(paymentDate).toISOString() : null,
-          payment_amount: paymentAmount ? parseInt(paymentAmount) : null,
-          admin_note: adminNote || null,
-        })
-        .eq('id', editingEnrollment.id);
+        .from('enrollment_payments')
+        .insert({
+          enrollment_id: selectedEnrollment.id,
+          amount: parseInt(paymentAmount),
+          payment_date: paymentDate,
+          note: paymentNote || null,
+          created_by: user?.id,
+        });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Enrollment updated!');
+      toast.success('Payment added!');
       queryClient.invalidateQueries({ queryKey: ['private-class-enrollments', classId] });
-      closeDialog();
+      closeAddPaymentDialog();
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update');
+      toast.error(error.message || 'Failed to add payment');
     },
   });
 
-  const openEditDialog = (enrollment: EnrollmentWithProfile) => {
-    setEditingEnrollment(enrollment);
-    setPaymentDate(enrollment.payment_received_at 
-      ? new Date(enrollment.payment_received_at).toISOString().slice(0, 10) 
-      : '');
-    setPaymentAmount(enrollment.payment_amount?.toString() || '');
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { error } = await supabase
+        .from('enrollment_payments')
+        .delete()
+        .eq('id', paymentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Payment deleted');
+      queryClient.invalidateQueries({ queryKey: ['private-class-enrollments', classId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete payment');
+    },
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedEnrollment) return;
+      const { error } = await supabase
+        .from('class_enrollments')
+        .update({ admin_note: adminNote || null })
+        .eq('id', selectedEnrollment.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Note updated!');
+      queryClient.invalidateQueries({ queryKey: ['private-class-enrollments', classId] });
+      setSelectedEnrollment(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update note');
+    },
+  });
+
+  const openAddPaymentDialog = (enrollment: EnrollmentWithProfile) => {
+    setSelectedEnrollment(enrollment);
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentAmount('');
+    setPaymentNote('');
+    setShowAddPayment(true);
+  };
+
+  const closeAddPaymentDialog = () => {
+    setShowAddPayment(false);
+    setPaymentDate('');
+    setPaymentAmount('');
+    setPaymentNote('');
+  };
+
+  const openNoteDialog = (enrollment: EnrollmentWithProfile) => {
+    setSelectedEnrollment(enrollment);
     setAdminNote(enrollment.admin_note || '');
   };
 
-  const closeDialog = () => {
-    setEditingEnrollment(null);
-    setPaymentDate('');
-    setPaymentAmount('');
-    setAdminNote('');
+  const toggleExpanded = (enrollmentId: string) => {
+    setExpandedEnrollments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(enrollmentId)) {
+        newSet.delete(enrollmentId);
+      } else {
+        newSet.add(enrollmentId);
+      }
+      return newSet;
+    });
   };
 
-  const markPaidToday = () => {
-    setPaymentDate(new Date().toISOString().slice(0, 10));
+  const getTotalPaid = (payments: EnrollmentPayment[]) => {
+    return payments.reduce((sum, p) => sum + p.amount, 0);
   };
 
   if (isLoading) {
@@ -158,84 +227,146 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
       ) : (
         <div className="grid gap-3">
           {enrollments.map((enrollment) => (
-            <Card key={enrollment.id} className="card-elevated">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">
-                        {enrollment.profile?.first_name} {enrollment.profile?.last_name}
-                      </p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {enrollment.profile?.phone}
-                      </p>
+            <Collapsible 
+              key={enrollment.id} 
+              open={expandedEnrollments.has(enrollment.id)}
+              onOpenChange={() => toggleExpanded(enrollment.id)}
+            >
+              <Card className="card-elevated">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <CollapsibleTrigger className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer hover:opacity-80">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">
+                          {enrollment.profile?.first_name} {enrollment.profile?.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {enrollment.profile?.phone}
+                        </p>
+                      </div>
+                    </CollapsibleTrigger>
+                    
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {enrollment.payments.length > 0 ? (
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
+                            <Check className="w-3 h-3" />
+                            {enrollment.payments.length} payment{enrollment.payments.length > 1 ? 's' : ''}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Rs. {getTotalPaid(enrollment.payments).toLocaleString()} total
+                          </span>
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="bg-muted gap-1">
+                          <Clock className="w-3 h-3" />
+                          No payments
+                        </Badge>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddPaymentDialog(enrollment);
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Payment
+                      </Button>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    {enrollment.payment_received_at ? (
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
-                          <Check className="w-3 h-3" />
-                          {format(new Date(enrollment.payment_received_at), 'MMM d, yyyy')}
-                        </Badge>
-                        {enrollment.payment_amount && (
-                          <span className="text-xs text-muted-foreground">
-                            Rs. {enrollment.payment_amount.toLocaleString()}
-                          </span>
-                        )}
+                  <CollapsibleContent className="mt-4 pt-4 border-t">
+                    {/* Payments List */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Payment History</Label>
                       </div>
-                    ) : (
-                      <Badge variant="outline" className="bg-muted gap-1">
-                        <Clock className="w-3 h-3" />
-                        Not set
-                      </Badge>
-                    )}
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => openEditDialog(enrollment)}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </div>
-                {enrollment.admin_note && (
-                  <p className="text-sm text-muted-foreground mt-2 pl-13">
-                    Note: {enrollment.admin_note}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                      {enrollment.payments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No payments recorded</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {enrollment.payments.map((payment) => (
+                            <div 
+                              key={payment.id} 
+                              className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Rs. {payment.amount.toLocaleString()}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    • {format(new Date(payment.payment_date), 'MMM d, yyyy')}
+                                  </span>
+                                </div>
+                                {payment.note && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{payment.note}</p>
+                                )}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => deletePaymentMutation.mutate(payment.id)}
+                                disabled={deletePaymentMutation.isPending}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Admin Note */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Admin Note</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Add internal note..."
+                          value={enrollment.admin_note || ''}
+                          readOnly
+                          className="flex-1"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openNoteDialog(enrollment)}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </CardContent>
+              </Card>
+            </Collapsible>
           ))}
         </div>
       )}
 
-      {/* Edit Dialog */}
-      <Dialog open={!!editingEnrollment} onOpenChange={(open) => !open && closeDialog()}>
+      {/* Add Payment Dialog */}
+      <Dialog open={showAddPayment} onOpenChange={(open) => !open && closeAddPaymentDialog()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update Payment Info</DialogTitle>
+            <DialogTitle>Add Payment</DialogTitle>
             <DialogDescription>
-              Set payment received date for {editingEnrollment?.profile?.first_name} {editingEnrollment?.profile?.last_name}
+              Record a payment for {selectedEnrollment?.profile?.first_name} {selectedEnrollment?.profile?.last_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="paymentDate">Payment Date</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="paymentDate"
-                    type="date"
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
+                <Input
+                  id="paymentDate"
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="paymentAmount">Amount (Rs.)</Label>
@@ -248,30 +379,53 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
                 />
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={markPaidToday} className="w-full">
-              Set Today's Date
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              This payment info will be shown to the student for their reference
-            </p>
             <div className="space-y-2">
-              <Label htmlFor="adminNote">Admin Note (optional)</Label>
+              <Label htmlFor="paymentNote">Note (optional)</Label>
               <Textarea
-                id="adminNote"
-                placeholder="Internal notes about this enrollment..."
-                value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
+                id="paymentNote"
+                placeholder="e.g., January 2026 fee"
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
                 rows={2}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button variant="outline" onClick={closeAddPaymentDialog}>Cancel</Button>
             <Button 
-              onClick={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending}
+              onClick={() => addPaymentMutation.mutate()}
+              disabled={addPaymentMutation.isPending || !paymentDate || !paymentAmount}
             >
-              {updateMutation.isPending ? 'Saving...' : 'Save'}
+              {addPaymentMutation.isPending ? 'Saving...' : 'Add Payment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Note Dialog */}
+      <Dialog open={!!selectedEnrollment && !showAddPayment} onOpenChange={(open) => !open && setSelectedEnrollment(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Admin Note</DialogTitle>
+            <DialogDescription>
+              Internal note for {selectedEnrollment?.profile?.first_name} {selectedEnrollment?.profile?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Internal notes about this enrollment..."
+              value={adminNote}
+              onChange={(e) => setAdminNote(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedEnrollment(null)}>Cancel</Button>
+            <Button 
+              onClick={() => updateNoteMutation.mutate()}
+              disabled={updateNoteMutation.isPending}
+            >
+              {updateNoteMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
