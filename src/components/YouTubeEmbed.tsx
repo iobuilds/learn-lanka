@@ -34,14 +34,23 @@ const YouTubeEmbed = ({ url, title = 'Video', className }: YouTubeEmbedProps) =>
     );
   }
 
+  // Use privacy-enhanced mode and disable related videos/sharing
+  // modestbranding=1 hides YouTube logo, rel=0 disables related videos
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`;
+
   return (
-    <div className={cn("aspect-video rounded-lg overflow-hidden bg-black", className)}>
+    <div 
+      className={cn("aspect-video rounded-lg overflow-hidden bg-black", className)}
+      onContextMenu={(e) => e.preventDefault()} // Disable right-click
+    >
       <iframe
-        src={`https://www.youtube.com/embed/${videoId}?rel=0`}
+        src={embedUrl}
         title={title}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
         className="w-full h-full"
+        style={{ border: 0 }}
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     </div>
   );

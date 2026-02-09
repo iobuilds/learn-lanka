@@ -40,6 +40,8 @@ interface PaperAttachment {
   title: string | null;
   url: string;
   sort_order: number;
+  access_type: string;
+  class_id: string | null;
 }
 
 const Papers = () => {
@@ -47,6 +49,7 @@ const Papers = () => {
   const [activeTab, setActiveTab] = useState('PAST_PAPER');
   const [tabInitialized, setTabInitialized] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [downloadingAttachment, setDownloadingAttachment] = useState<string | null>(null);
   const [selectedPaperForReview, setSelectedPaperForReview] = useState<Paper | null>(null);
   const isGuest = !user;
 
@@ -173,6 +176,64 @@ const Papers = () => {
       setDownloadingPdf(null);
     }
   };
+
+  // Download attachment PDF with watermark
+  const handleDownloadAttachmentPdf = async (attachment: PaperAttachment) => {
+    if (!user) {
+      toast.error('Please log in to download');
+      return;
+    }
+
+    setDownloadingAttachment(attachment.id);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        setDownloadingAttachment(null);
+        return;
+      }
+
+      // Call edge function for watermarked PDF with access check
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/download-paper-attachment`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ 
+            attachmentId: attachment.id,
+            pdfUrl: attachment.url 
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to download PDF');
+      }
+
+      // Download the watermarked PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(attachment.title || 'review-material').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('PDF downloaded successfully!');
+    } catch (error: any) {
+      console.error('Error downloading attachment PDF:', error);
+      toast.error(error.message || 'Failed to download PDF');
+    } finally {
+      setDownloadingAttachment(null);
+    }
+  }
 
   useEffect(() => {
     if (tabInitialized) return;
@@ -353,7 +414,12 @@ const Papers = () => {
                               <Video className="w-4 h-4 text-primary" />
                               {attachment.title || 'Review Video'}
                             </p>
-                            <YouTubeEmbed url={attachment.url} />
+                            <div onContextMenu={(e) => e.preventDefault()}>
+                              <YouTubeEmbed url={attachment.url} />
+                            </div>
+                            <p className="text-xs text-muted-foreground text-center">
+                              Video download is disabled
+                            </p>
                           </div>
                         ) : (
                           <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
@@ -363,16 +429,23 @@ const Papers = () => {
                               </div>
                               <div>
                                 <p className="font-medium">{attachment.title || 'Review PDF'}</p>
-                                <p className="text-xs text-muted-foreground">PDF Document</p>
+                                <p className="text-xs text-muted-foreground">PDF Document (watermarked)</p>
                               </div>
                             </div>
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => window.open(attachment.url, '_blank')}
+                              onClick={() => handleDownloadAttachmentPdf(attachment)}
+                              disabled={downloadingAttachment === attachment.id}
                             >
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Open
+                              {downloadingAttachment === attachment.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Download
+                                </>
+                              )}
                             </Button>
                           </div>
                         )}
