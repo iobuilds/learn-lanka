@@ -72,6 +72,8 @@ const AdminClassContent = () => {
   const [editingDay, setEditingDay] = useState<any>(null);
   const [dayTitle, setDayTitle] = useState('');
   const [dayDate, setDayDate] = useState('');
+  const [dayStartTime, setDayStartTime] = useState('');
+  const [dayEndTime, setDayEndTime] = useState('');
   const [dayIsExtra, setDayIsExtra] = useState(false);
   
   // Lesson dialog state
@@ -186,7 +188,13 @@ const AdminClassContent = () => {
       if (editingDay) {
         const { error } = await supabase
           .from('class_days')
-          .update({ title: dayTitle, date: dayDate, is_extra: dayIsExtra })
+          .update({ 
+            title: dayTitle, 
+            date: dayDate, 
+            start_time: dayStartTime || null,
+            end_time: dayEndTime || null,
+            is_extra: dayIsExtra 
+          })
           .eq('id', editingDay.id);
         if (error) throw error;
         
@@ -223,6 +231,8 @@ const AdminClassContent = () => {
             class_month_id: classMonth.id, 
             title: dayTitle, 
             date: dayDate, 
+            start_time: dayStartTime || null,
+            end_time: dayEndTime || null,
             is_extra: dayIsExtra 
           });
         if (error) throw error;
@@ -406,6 +416,8 @@ const AdminClassContent = () => {
     setEditingDay(null);
     setDayTitle('');
     setDayDate('');
+    setDayStartTime('');
+    setDayEndTime('');
     setDayIsExtra(false);
   };
 
@@ -423,6 +435,8 @@ const AdminClassContent = () => {
     setEditingDay(day);
     setDayTitle(day.title);
     setDayDate(day.date);
+    setDayStartTime(day.start_time || '');
+    setDayEndTime(day.end_time || '');
     setDayIsExtra(day.is_extra);
     setDayDialogOpen(true);
   };
@@ -619,6 +633,12 @@ const AdminClassContent = () => {
                               {new Date(day.date).toLocaleDateString('en-US', { 
                                 weekday: 'long', month: 'short', day: 'numeric' 
                               })}
+                              {day.start_time && (
+                                <span className="ml-2 text-primary">
+                                  {day.start_time.slice(0, 5)}
+                                  {day.end_time && ` - ${day.end_time.slice(0, 5)}`}
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -809,6 +829,26 @@ const AdminClassContent = () => {
                 value={dayDate}
                 onChange={(e) => setDayDate(e.target.value)}
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="dayStartTime">Start Time</Label>
+                <Input 
+                  id="dayStartTime" 
+                  type="time"
+                  value={dayStartTime}
+                  onChange={(e) => setDayStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dayEndTime">End Time</Label>
+                <Input 
+                  id="dayEndTime" 
+                  type="time"
+                  value={dayEndTime}
+                  onChange={(e) => setDayEndTime(e.target.value)}
+                />
+              </div>
             </div>
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div>
