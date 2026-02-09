@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 interface SMSRequest {
-  type?: 'rank_results_published' | 'schedule_published' | 'generic';
+  type?: 'rank_results_published' | 'schedule_published' | 'schedule_rescheduled' | 'meeting_link' | 'generic';
   template_key?: string;
   targetUsers?: string[]; // user IDs
   classId?: string;
@@ -159,6 +159,64 @@ Deno.serve(async (req) => {
     if (type === 'rank_results_published' && rankPaperId) {
       const result = await handleRankResultsSMS(supabase, rankPaperId, classId, data, textlkToken!, textlkSenderId);
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Handle meeting link notification
+    if (type === 'meeting_link' && classId && data.meetingLink) {
+      // Get enrolled students
+      const { data: enrollments } = await supabase
+        .from('class_enrollments')
+        .select('user_id, profiles!inner(id, phone, first_name)')
+        .eq('class_id', classId)
+        .eq('status', 'ACTIVE');
+      
+      const recipients = enrollments?.map((e: any) => ({ 
+        phone: e.profiles.phone, 
+        userId: e.profiles.id, 
+        firstName: e.profiles.first_name 
+      })) || [];
+
+      if (recipients.length === 0) {
+        return new Response(JSON.stringify({ success: true, message: 'No recipients found' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const message = `🔗 Class Link\n\n${data.className || 'Your class'} (${data.dayTitle || ''}) on ${data.date || ''}.\n\nJoin: ${data.meetingLink}`;
+
+      const results = [];
+      for (const recipient of recipients) {
+        try {
+          let phone = recipient.phone.replace(/\s+/g, '');
+          if (phone.startsWith('0')) phone = '94' + phone.substring(1);
+          if (!phone.startsWith('94') && !phone.startsWith('+94')) phone = '94' + phone;
+          phone = phone.replace(/^\+/, '');
+
+          const response = await fetch('https://app.text.lk/api/v3/sms/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${textlkToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              recipient: phone,
+              sender_id: textlkSenderId,
+              type: 'plain',
+              message: message,
+            }),
+          });
+
+          results.push({ userId: recipient.userId, success: response.ok });
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          results.push({ userId: recipient.userId, success: false });
+        }
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        sent: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
     // If classDayId is provided, fetch class day details for time variables
