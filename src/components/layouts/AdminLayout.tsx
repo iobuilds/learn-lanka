@@ -40,6 +40,7 @@ const navItems = [
   { path: '/admin/shop', label: 'Shop', icon: ShoppingBag },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
   { path: '/admin/bulk-sms', label: 'Bulk SMS', icon: MessageSquare },
+  { path: '/admin/contact-messages', label: 'Contact Messages', icon: MessageSquare },
   { path: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 

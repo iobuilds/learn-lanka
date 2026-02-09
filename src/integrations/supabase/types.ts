@@ -268,6 +268,48 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_messages: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          email: string | null
+          id: string
+          message: string
+          name: string
+          phone: string
+          responded_at: string | null
+          responded_by: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message: string
+          name: string
+          phone: string
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string
+          name?: string
+          phone?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       coupon_usages: {
         Row: {
           coupon_id: string
