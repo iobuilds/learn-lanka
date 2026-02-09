@@ -6,13 +6,16 @@ const corsHeaders = {
 };
 
 interface SMSRequest {
-  template_key: string;
+  type?: 'rank_results_published' | 'schedule_published' | 'generic';
+  template_key?: string;
   targetUsers?: string[]; // user IDs
   classId?: string;
+  rankPaperId?: string; // For rank paper result notifications
   classDayId?: string; // For class day specific notifications
   previousMonthOnly?: boolean; // Only send to students who paid in previous month
   previousMonth?: string; // Format: YYYY-MM
   variables?: Record<string, string>; // Variables to replace in template
+  data?: Record<string, any>; // Additional data for specialized notifications
 }
 
 // Replace template variables with actual values
@@ -22,6 +25,111 @@ function replaceVariables(template: string, variables: Record<string, string>): 
     result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value || '');
   }
   return result;
+}
+
+// Handle SMS for rank paper results - sends to eligible students only
+async function handleRankResultsSMS(
+  supabase: any, 
+  rankPaperId: string, 
+  classId: string | null | undefined, 
+  data: Record<string, any>,
+  textlkToken: string,
+  textlkSenderId: string
+): Promise<{ success: boolean; sent?: number; failed?: number; message?: string }> {
+  const eligibleUserIds = new Set<string>();
+
+  // 1. Get students who attempted (and thus paid for) this rank paper
+  const { data: attempts } = await supabase
+    .from('rank_attempts')
+    .select('user_id')
+    .eq('rank_paper_id', rankPaperId);
+  
+  attempts?.forEach((a: any) => eligibleUserIds.add(a.user_id));
+
+  // 2. If paper is linked to a class, get private class enrolled students
+  if (classId) {
+    const { data: classInfo } = await supabase
+      .from('classes')
+      .select('is_private')
+      .eq('id', classId)
+      .single();
+
+    if (classInfo?.is_private) {
+      // Get all active enrollments for private class
+      const { data: enrollments } = await supabase
+        .from('class_enrollments')
+        .select('user_id')
+        .eq('class_id', classId)
+        .eq('status', 'ACTIVE');
+      
+      enrollments?.forEach((e: any) => eligibleUserIds.add(e.user_id));
+    } else {
+      // For public class, get students who have any approved payment for this class
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('user_id')
+        .like('ref_id', `${classId}-%`)
+        .eq('payment_type', 'CLASS_MONTH')
+        .eq('status', 'APPROVED');
+      
+      payments?.forEach((p: any) => eligibleUserIds.add(p.user_id));
+    }
+  }
+
+  if (eligibleUserIds.size === 0) {
+    return { success: true, message: 'No eligible recipients for rank results SMS' };
+  }
+
+  // Get phone numbers
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, phone, first_name')
+    .in('id', Array.from(eligibleUserIds));
+
+  if (!profiles || profiles.length === 0) {
+    return { success: true, message: 'No profiles found for eligible users' };
+  }
+
+  // Compose message
+  const message = `📊 Results Published!\n\n${data.paperTitle || 'Rank Paper'} (Grade ${data.grade || ''}) results are now available. Log in to view your score and ranking!\n\n🔗 rankpapers.lk`;
+
+  // Send SMS
+  const results = [];
+  for (const recipient of profiles) {
+    try {
+      let phone = recipient.phone.replace(/\s+/g, '');
+      if (phone.startsWith('0')) phone = '94' + phone.substring(1);
+      if (!phone.startsWith('94') && !phone.startsWith('+94')) phone = '94' + phone;
+      phone = phone.replace(/^\+/, '');
+
+      const response = await fetch('https://app.text.lk/api/v3/sms/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${textlkToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          recipient: phone,
+          sender_id: textlkSenderId,
+          type: 'plain',
+          message: message,
+        }),
+      });
+
+      const result = await response.json();
+      results.push({ userId: recipient.id, success: response.ok });
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      results.push({ userId: recipient.id, success: false });
+    }
+  }
+
+  return {
+    success: true,
+    sent: results.filter(r => r.success).length,
+    failed: results.filter(r => !r.success).length,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -45,7 +153,13 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: SMSRequest = await req.json();
-    const { template_key, targetUsers, classId, classDayId, previousMonthOnly, previousMonth, variables = {} } = body;
+    const { type, template_key, targetUsers, classId, rankPaperId, classDayId, previousMonthOnly, previousMonth, variables = {}, data = {} } = body;
+
+    // Handle rank paper results published - specialized logic
+    if (type === 'rank_results_published' && rankPaperId) {
+      const result = await handleRankResultsSMS(supabase, rankPaperId, classId, data, textlkToken!, textlkSenderId);
+      return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     
     // If classDayId is provided, fetch class day details for time variables
     let classDayDetails: { date: string; start_time: string | null; end_time: string | null; title: string; class_name: string } | null = null;
