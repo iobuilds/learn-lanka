@@ -66,7 +66,7 @@ const ClassDetail = () => {
       if (!user || !id) return null;
       const { data, error } = await supabase
         .from('class_enrollments')
-        .select('*, payment_received_at, admin_note')
+        .select('*')
         .eq('user_id', user.id)
         .eq('class_id', id)
         .eq('status', 'ACTIVE')
@@ -75,6 +75,22 @@ const ClassDetail = () => {
       return data;
     },
     enabled: !!user && !!id,
+  });
+
+  // Fetch enrollment payments for private classes
+  const { data: enrollmentPayments = [] } = useQuery({
+    queryKey: ['enrollment-payments', enrollment?.id],
+    queryFn: async () => {
+      if (!enrollment?.id) return [];
+      const { data, error } = await supabase
+        .from('enrollment_payments')
+        .select('*')
+        .eq('enrollment_id', enrollment.id)
+        .order('payment_date', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!enrollment?.id,
   });
 
   // Fetch current month payment status
@@ -598,10 +614,10 @@ const ClassDetail = () => {
           {/* Payments Tab */}
           <TabsContent value="payments" className="space-y-6">
             {isPrivateClass ? (
-              // Private class - show payment info from admin
+              // Private class - show payment history from admin
               <Card className="card-elevated">
                 <CardHeader>
-                  <CardTitle className="text-lg">Payment Information</CardTitle>
+                  <CardTitle className="text-lg">Payment History</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-3 p-4 rounded-lg bg-success/10">
@@ -612,23 +628,42 @@ const ClassDetail = () => {
                     </div>
                   </div>
 
-                  {enrollment?.payment_received_at && (
-                    <div className="p-4 rounded-lg bg-muted">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Payment Record</span>
+                  {enrollmentPayments.length > 0 ? (
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm text-muted-foreground">Recorded Payments</h4>
+                      <div className="space-y-2">
+                        {enrollmentPayments.map((payment: any) => (
+                          <div key={payment.id} className="p-4 rounded-lg bg-muted flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold">Rs. {payment.amount.toLocaleString()}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(payment.payment_date).toLocaleDateString('en-US', { 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </p>
+                              {payment.note && (
+                                <p className="text-xs text-muted-foreground mt-1">{payment.note}</p>
+                              )}
+                            </div>
+                            <CheckCircle className="w-5 h-5 text-success" />
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-lg font-semibold">
-                        {new Date(enrollment.payment_received_at).toLocaleDateString('en-US', { 
-                          weekday: 'long',
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Date recorded by administrator for your reference
-                      </p>
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Total Paid</span>
+                          <span className="font-bold text-lg">
+                            Rs. {enrollmentPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg bg-muted text-center">
+                      <Clock className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No payment records yet</p>
                     </div>
                   )}
                 </CardContent>
