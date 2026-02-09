@@ -2,35 +2,71 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
 // Tables to backup (in order for proper restore with foreign keys)
+// This list includes ALL public tables in the correct dependency order
 const BACKUP_TABLES = [
+  // Independent tables (no foreign keys)
   'bank_accounts',
+  'sms_templates',
+  'coupons',
+  'shop_products',
+  'papers',
+  'notifications',
+  
+  // User-related (but public schema)
+  'profiles',
+  'user_roles',
+  
+  // Classes hierarchy
   'classes',
   'class_months',
   'class_days',
   'lessons',
+  'lesson_attachments',
   'class_papers',
+  
+  // Enrollments
   'class_enrollments',
+  'enrollment_payments',
   'moderator_class_assignments',
-  'coupons',
+  
+  // Coupons usage
   'coupon_usages',
-  'notifications',
+  
+  // Notifications
   'user_notification_reads',
-  'papers',
+  
+  // Papers attachments
+  'paper_attachments',
+  'paper_attachment_user_access',
+  
+  // Payments
   'payments',
-  'profiles',
-  'user_roles',
+  
+  // Rank Papers hierarchy
   'rank_papers',
+  'rank_paper_attachments',
   'rank_mcq_questions',
   'rank_mcq_options',
   'rank_attempts',
   'rank_answers_mcq',
   'rank_answers_uploads',
   'rank_marks',
-  'shop_products',
+  
+  // Shop orders
+  'shop_orders',
+  'shop_order_items',
+  
+  // Contact & SMS
+  'contact_messages',
+  'sms_logs',
+  'otp_requests',
+  
+  // Zoom meeting links
+  'student_meeting_links',
 ];
 
 Deno.serve(async (req) => {
@@ -83,25 +119,30 @@ Deno.serve(async (req) => {
     const { action, backupData } = body;
 
     if (action === 'backup') {
-      const backup: Record<string, any[]> = {
+      const backup: Record<string, unknown> = {
         _meta: {
           created_at: new Date().toISOString(),
-          version: '1.0',
+          version: '2.0',
           tables: BACKUP_TABLES,
         }
       };
 
       // Fetch all data from each table
       for (const table of BACKUP_TABLES) {
-        const { data, error } = await supabase
-          .from(table)
-          .select('*');
+        try {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*');
 
-        if (error) {
-          console.error(`Error fetching ${table}:`, error);
+          if (error) {
+            console.error(`Error fetching ${table}:`, error);
+            backup[table] = [];
+          } else {
+            backup[table] = data || [];
+          }
+        } catch (e) {
+          console.error(`Exception fetching ${table}:`, e);
           backup[table] = [];
-        } else {
-          backup[table] = data || [];
         }
       }
 
@@ -131,10 +172,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          // Clear existing data first (in reverse order for FK constraints)
-          // Note: This is a destructive operation!
-          
-          // Upsert data
+          // Upsert data - will insert new or update existing based on primary key
           const { error } = await supabase
             .from(table)
             .upsert(tableData, { 
@@ -149,6 +187,7 @@ Deno.serve(async (req) => {
             results[table] = { success: true, count: tableData.length };
           }
         } catch (err) {
+          console.error(`Exception restoring ${table}:`, err);
           results[table] = { success: false, count: 0, error: String(err) };
         }
       }
@@ -168,7 +207,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: String(error) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
