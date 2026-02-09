@@ -337,6 +337,44 @@ export type Database = {
         }
         Relationships: []
       }
+      lesson_attachments: {
+        Row: {
+          attachment_type: string
+          created_at: string
+          id: string
+          lesson_id: string
+          sort_order: number
+          title: string | null
+          url: string
+        }
+        Insert: {
+          attachment_type: string
+          created_at?: string
+          id?: string
+          lesson_id: string
+          sort_order?: number
+          title?: string | null
+          url: string
+        }
+        Update: {
+          attachment_type?: string
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          sort_order?: number
+          title?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_attachments_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lessons: {
         Row: {
           class_day_id: string

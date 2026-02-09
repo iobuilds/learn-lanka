@@ -53,6 +53,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import ClassPapersManager from '@/components/admin/ClassPapersManager';
+import LessonAttachmentsManager from '@/components/admin/LessonAttachmentsManager';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -851,60 +852,16 @@ const AdminClassContent = () => {
               />
             </div>
 
-            {/* PDF Upload */}
-            <div className="space-y-2">
-              <Label>PDF File (optional)</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handlePdfFileChange}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingPdf}
-                >
-                  <UploadIcon className="w-4 h-4 mr-2" />
-                  {uploadingPdf ? 'Uploading...' : 'Choose PDF'}
-                </Button>
-                {lessonPdfUrl && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="gap-1">
-                      <FileText className="w-3 h-3" />
-                      PDF Uploaded
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => setLessonPdfUrl('')}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {lessonPdfUrl ? 'PDF uploaded to server' : 'Max 20MB PDF files'}
-              </p>
-            </div>
+            {/* Attachments - only show when editing existing lesson */}
+            {editingLesson && (
+              <LessonAttachmentsManager lessonId={editingLesson.id} />
+            )}
 
-            {/* YouTube URL */}
-            <div className="space-y-2">
-              <Label htmlFor="lessonYoutubeUrl">YouTube URL (optional)</Label>
-              <Input 
-                id="lessonYoutubeUrl" 
-                placeholder="https://www.youtube.com/watch?v=..."
-                value={lessonYoutubeUrl}
-                onChange={(e) => setLessonYoutubeUrl(e.target.value)}
-              />
-            </div>
+            {!editingLesson && (
+              <p className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
+                💡 Save the lesson first, then you can add multiple videos, PDFs, and images
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLessonDialogOpen(false)}>Cancel</Button>
