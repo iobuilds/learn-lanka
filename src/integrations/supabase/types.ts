@@ -55,6 +55,8 @@ export type Database = {
           id: string
           is_conducted: boolean
           is_extra: boolean
+          meeting_link: string | null
+          meeting_link_notified_at: string | null
           start_time: string | null
           title: string
         }
@@ -68,6 +70,8 @@ export type Database = {
           id?: string
           is_conducted?: boolean
           is_extra?: boolean
+          meeting_link?: string | null
+          meeting_link_notified_at?: string | null
           start_time?: string | null
           title: string
         }
@@ -81,6 +85,8 @@ export type Database = {
           id?: string
           is_conducted?: boolean
           is_extra?: boolean
+          meeting_link?: string | null
+          meeting_link_notified_at?: string | null
           start_time?: string | null
           title?: string
         }

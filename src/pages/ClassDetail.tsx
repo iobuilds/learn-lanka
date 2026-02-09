@@ -23,6 +23,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import ClassPapersList from '@/components/class/ClassPapersList';
 import LessonAttachmentsList from '@/components/class/LessonAttachmentsList';
@@ -42,6 +48,7 @@ const ClassDetail = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [enrollCode, setEnrollCode] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [viewingNotes, setViewingNotes] = useState<{ title: string; notes: string } | null>(null);
 
   // Fetch class details
   const { data: classData, isLoading: classLoading } = useQuery({
@@ -586,7 +593,12 @@ const ClassDetail = () => {
                                 </Button>
                               )}
                               {lesson.notes_text && (
-                                <Button variant="outline" size="sm" className="gap-1">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="gap-1"
+                                  onClick={() => setViewingNotes({ title: lesson.title, notes: lesson.notes_text })}
+                                >
                                   <BookOpen className="w-4 h-4" />
                                   Notes
                                 </Button>
@@ -752,6 +764,23 @@ const ClassDetail = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Notes Dialog */}
+        <Dialog open={!!viewingNotes} onOpenChange={(open) => !open && setViewingNotes(null)}>
+          <DialogContent className="max-w-lg max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary" />
+                Notes: {viewingNotes?.title}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="whitespace-pre-wrap text-sm text-foreground bg-muted p-4 rounded-lg max-h-[50vh] overflow-y-auto">
+                {viewingNotes?.notes}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </StudentLayout>
   );

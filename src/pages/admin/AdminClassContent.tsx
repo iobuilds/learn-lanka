@@ -18,7 +18,8 @@ import {
   Bell,
   CheckCircle,
   Circle,
-  Users
+  Users,
+  Link2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +76,8 @@ const AdminClassContent = () => {
   const [dayStartTime, setDayStartTime] = useState('');
   const [dayEndTime, setDayEndTime] = useState('');
   const [dayIsExtra, setDayIsExtra] = useState(false);
+  const [dayMeetingLink, setDayMeetingLink] = useState('');
+  const [notifyMeetingLink, setNotifyMeetingLink] = useState(false);
   
   // Lesson dialog state
   const [lessonDialogOpen, setLessonDialogOpen] = useState(false);
@@ -193,7 +196,8 @@ const AdminClassContent = () => {
             date: dayDate, 
             start_time: dayStartTime || null,
             end_time: dayEndTime || null,
-            is_extra: dayIsExtra 
+            is_extra: dayIsExtra,
+            meeting_link: dayMeetingLink || null,
           })
           .eq('id', editingDay.id);
         if (error) throw error;
@@ -224,8 +228,43 @@ const AdminClassContent = () => {
             console.error('SMS notification failed:', smsError);
           }
         }
+
+        // Notify students about meeting link if requested
+        if (notifyMeetingLink && dayMeetingLink && classData) {
+          // Create in-app notification
+          await supabase.from('notifications').insert({
+            title: '🔗 Class Link Available',
+            message: `Join link for ${classData.title} (${dayTitle}) on ${new Date(dayDate).toLocaleDateString()}: ${dayMeetingLink}`,
+            target_type: 'CLASS',
+            target_ref: id,
+          });
+
+          // Update meeting_link_notified_at
+          await supabase
+            .from('class_days')
+            .update({ meeting_link_notified_at: new Date().toISOString() })
+            .eq('id', editingDay.id);
+          
+          // Send SMS notification
+          try {
+            await supabase.functions.invoke('send-sms-notification', {
+              body: {
+                type: 'meeting_link',
+                classId: id,
+                data: {
+                  className: classData.title,
+                  dayTitle: dayTitle,
+                  date: new Date(dayDate).toLocaleDateString(),
+                  meetingLink: dayMeetingLink,
+                },
+              },
+            });
+          } catch (smsError) {
+            console.error('SMS notification failed:', smsError);
+          }
+        }
       } else {
-        const { error } = await supabase
+        const { data: newDay, error } = await supabase
           .from('class_days')
           .insert({ 
             class_month_id: classMonth.id, 
@@ -233,9 +272,44 @@ const AdminClassContent = () => {
             date: dayDate, 
             start_time: dayStartTime || null,
             end_time: dayEndTime || null,
-            is_extra: dayIsExtra 
-          });
+            is_extra: dayIsExtra,
+            meeting_link: dayMeetingLink || null,
+          })
+          .select()
+          .single();
         if (error) throw error;
+
+        // Notify students about meeting link if requested
+        if (notifyMeetingLink && dayMeetingLink && classData && newDay) {
+          await supabase.from('notifications').insert({
+            title: '🔗 Class Link Available',
+            message: `Join link for ${classData.title} (${dayTitle}) on ${new Date(dayDate).toLocaleDateString()}: ${dayMeetingLink}`,
+            target_type: 'CLASS',
+            target_ref: id,
+          });
+
+          await supabase
+            .from('class_days')
+            .update({ meeting_link_notified_at: new Date().toISOString() })
+            .eq('id', newDay.id);
+          
+          try {
+            await supabase.functions.invoke('send-sms-notification', {
+              body: {
+                type: 'meeting_link',
+                classId: id,
+                data: {
+                  className: classData.title,
+                  dayTitle: dayTitle,
+                  date: new Date(dayDate).toLocaleDateString(),
+                  meetingLink: dayMeetingLink,
+                },
+              },
+            });
+          } catch (smsError) {
+            console.error('SMS notification failed:', smsError);
+          }
+        }
       }
     },
     onSuccess: () => {
@@ -443,6 +517,8 @@ const AdminClassContent = () => {
     setDayStartTime('');
     setDayEndTime('');
     setDayIsExtra(false);
+    setDayMeetingLink('');
+    setNotifyMeetingLink(false);
   };
 
   const resetLessonForm = () => {
@@ -462,6 +538,8 @@ const AdminClassContent = () => {
     setDayStartTime(day.start_time || '');
     setDayEndTime(day.end_time || '');
     setDayIsExtra(day.is_extra);
+    setDayMeetingLink(day.meeting_link || '');
+    setNotifyMeetingLink(false);
     setDayDialogOpen(true);
   };
 
@@ -884,6 +962,36 @@ const AdminClassContent = () => {
               </div>
               <Switch checked={dayIsExtra} onCheckedChange={setDayIsExtra} />
             </div>
+
+            {/* Meeting Link */}
+            <div className="space-y-2">
+              <Label htmlFor="dayMeetingLink" className="flex items-center gap-2">
+                <Link2 className="w-4 h-4" />
+                Meeting Link (optional)
+              </Label>
+              <Input 
+                id="dayMeetingLink" 
+                placeholder="https://meet.google.com/... or Zoom link"
+                value={dayMeetingLink}
+                onChange={(e) => setDayMeetingLink(e.target.value)}
+              />
+            </div>
+
+            {/* Notify Students Toggle */}
+            {dayMeetingLink && (
+              <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <div>
+                  <Label className="text-primary">Notify Students</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Send SMS + in-app notification with the link
+                  </p>
+                </div>
+                <Switch 
+                  checked={notifyMeetingLink} 
+                  onCheckedChange={setNotifyMeetingLink} 
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDayDialogOpen(false)}>Cancel</Button>
