@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,19 +14,24 @@ import { Send, MessageSquare, Phone, Mail, MapPin, CheckCircle } from "lucide-re
 import { Link } from "react-router-dom";
 
 const contactSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().min(9, "Please enter a valid phone number"),
-  email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
-  subject: z.string().min(3, "Subject must be at least 3 characters"),
-  message: z.string().min(10, "Message must be at least 10 characters"),
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
+  phone: z.string().trim().min(9, "Please enter a valid phone number").max(15),
+  email: z.string().trim().email("Please enter a valid email").max(255).optional().or(z.literal("")),
+  subject: z.string().trim().min(3, "Subject must be at least 3 characters").max(200),
+  message: z.string().trim().min(10, "Message must be at least 10 characters").max(2000),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
 const Contact = () => {
   const { toast } = useToast();
+  const { user, profile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Helper to get clean phone number
+  const getCleanPhone = (phone: string | undefined) => 
+    phone?.replace(/@phone\.alict\.lk$/i, '') || '';
 
   const form = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -37,6 +43,15 @@ const Contact = () => {
       message: "",
     },
   });
+
+  // Auto-fill form when profile is available
+  useEffect(() => {
+    if (profile) {
+      const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+      form.setValue('name', fullName);
+      form.setValue('phone', getCleanPhone(profile.phone));
+    }
+  }, [profile, form]);
 
   const onSubmit = async (data: ContactFormData) => {
     setIsSubmitting(true);
