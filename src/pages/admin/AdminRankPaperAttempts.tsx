@@ -11,7 +11,9 @@ import {
   Eye,
   Award,
   Send,
-  Download
+  Download,
+  AlertTriangle,
+  SendHorizontal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +60,8 @@ interface Attempt {
   ends_at: string;
   submitted_at: string | null;
   auto_closed: boolean;
+  tab_switch_count: number;
+  window_close_count: number;
   profile?: {
     first_name: string;
     last_name: string;
@@ -287,6 +291,37 @@ const AdminRankPaperAttempts = () => {
     },
   });
 
+  // Publish ALL marks mutation
+  const publishAllMarksMutation = useMutation({
+    mutationFn: async () => {
+      // Get all attempts that have marks but aren't published
+      const markedButNotPublished = attempts.filter(a => {
+        const mark = marksMap[a.id];
+        return mark && mark.total_score !== null && !mark.published_at;
+      });
+      
+      if (markedButNotPublished.length === 0) {
+        throw new Error('No unmarked or unpublished results to publish');
+      }
+
+      const attemptIds = markedButNotPublished.map(a => a.id);
+      const { error } = await supabase
+        .from('rank_marks')
+        .update({ published_at: new Date().toISOString() })
+        .in('attempt_id', attemptIds);
+      
+      if (error) throw error;
+      return attemptIds.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`Published ${count} results! All students can now view their marks.`);
+      queryClient.invalidateQueries({ queryKey: ['rank-marks', paperId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to publish all marks');
+    },
+  });
+
   // Unpublish marks mutation
   const unpublishMarksMutation = useMutation({
     mutationFn: async (attemptId: string) => {
@@ -452,9 +487,26 @@ const AdminRankPaperAttempts = () => {
 
         {/* Attempts Table */}
         <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle>Student Attempts</CardTitle>
-            <CardDescription>View submissions and manage marks</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Student Attempts</CardTitle>
+              <CardDescription>View submissions and manage marks</CardDescription>
+            </div>
+            {/* Publish All Button */}
+            {Object.values(marksMap).filter(m => m.total_score !== null && !m.published_at).length > 0 && (
+              <Button 
+                onClick={() => publishAllMarksMutation.mutate()}
+                disabled={publishAllMarksMutation.isPending}
+                className="gap-2"
+              >
+                {publishAllMarksMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <SendHorizontal className="w-4 h-4" />
+                )}
+                Publish All Results ({Object.values(marksMap).filter(m => m.total_score !== null && !m.published_at).length})
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -463,6 +515,7 @@ const AdminRankPaperAttempts = () => {
                   <TableHead>Student</TableHead>
                   <TableHead>Started</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Violations</TableHead>
                   <TableHead>Score</TableHead>
                   <TableHead>Mark Status</TableHead>
                   <TableHead className="w-10"></TableHead>
@@ -488,6 +541,21 @@ const AdminRankPaperAttempts = () => {
                         </div>
                       </TableCell>
                       <TableCell>{getAttemptStatus(attempt)}</TableCell>
+                      <TableCell>
+                        {(attempt.tab_switch_count > 0 || attempt.window_close_count > 0) ? (
+                          <div className="flex items-center gap-1.5 text-destructive">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span className="text-sm font-medium">
+                              {attempt.tab_switch_count + attempt.window_close_count}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              ({attempt.tab_switch_count}T / {attempt.window_close_count}W)
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-success text-sm">Clean</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {mark?.total_score !== null && mark?.total_score !== undefined ? (
                           <span className="font-medium">{mark.total_score}</span>

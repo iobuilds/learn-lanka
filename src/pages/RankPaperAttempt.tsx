@@ -262,7 +262,7 @@ const RankPaperAttempt = () => {
     }, 500);
   }, [attempt]);
 
-  // Anti-cheating measures: Tab visibility, keyboard shortcuts, print screen
+  // Anti-cheating measures: Tab visibility, keyboard shortcuts, print screen, copy protection
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && attempt) {
@@ -285,25 +285,59 @@ const RankPaperAttempt = () => {
     
     document.addEventListener('contextmenu', handleContextMenu);
 
+    // Block copy event
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      toast({ title: 'Copy disabled', description: 'Copying content is not allowed during the exam' });
+    };
+    document.addEventListener('copy', handleCopy);
+
+    // Block cut event
+    const handleCut = (e: ClipboardEvent) => {
+      e.preventDefault();
+      toast({ title: 'Cut disabled', description: 'Cutting content is not allowed during the exam' });
+    };
+    document.addEventListener('cut', handleCut);
+
+    // Block paste event
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      toast({ title: 'Paste disabled', description: 'Pasting content is not allowed during the exam' });
+    };
+    document.addEventListener('paste', handlePaste);
+
     // Block keyboard shortcuts for screenshots and copy
     const handleKeyDown = (e: KeyboardEvent) => {
       // Block PrintScreen
       if (e.key === 'PrintScreen') {
         e.preventDefault();
-        toast({ title: 'Screenshots disabled', description: 'Taking screenshots is not allowed during the exam' });
+        navigator.clipboard.writeText('').catch(() => {});
+        toast({ title: 'Screenshots blocked', description: 'Taking screenshots is not allowed during the exam', variant: 'destructive' });
+        // Record as violation
+        setTabSwitchCount(prev => {
+          const newCount = prev + 1;
+          saveViolations(newCount, windowCloseCount);
+          return newCount;
+        });
         return;
       }
       
-      // Block Ctrl+P (Print), Ctrl+S (Save), Ctrl+C (Copy), Ctrl+Shift+S (Save As)
+      // Block Ctrl/Cmd+P (Print), Ctrl/Cmd+S (Save), Ctrl/Cmd+C (Copy), Ctrl/Cmd+A (Select All), Ctrl/Cmd+X (Cut), Ctrl/Cmd+V (Paste)
       if (e.ctrlKey || e.metaKey) {
-        if (['p', 's', 'c', 'a'].includes(e.key.toLowerCase())) {
+        if (['p', 's', 'c', 'a', 'x', 'v', 'u'].includes(e.key.toLowerCase())) {
           e.preventDefault();
-          toast({ title: 'Shortcut disabled', description: 'This keyboard shortcut is not allowed during the exam' });
+          toast({ title: 'Shortcut blocked', description: 'This keyboard shortcut is not allowed during the exam', variant: 'destructive' });
           return;
         }
-        // Block Ctrl+Shift+I (DevTools)
-        if (e.shiftKey && e.key.toLowerCase() === 'i') {
+        // Block Ctrl+Shift+I (DevTools), Ctrl+Shift+J (Console), Ctrl+Shift+C (Element picker)
+        if (e.shiftKey && ['i', 'j', 'c', 's'].includes(e.key.toLowerCase())) {
           e.preventDefault();
+          return;
+        }
+        // Block Ctrl+Shift+S (Screenshot in some systems)
+        if (e.shiftKey && e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          toast({ title: 'Screenshots blocked', description: 'Taking screenshots is not allowed during the exam', variant: 'destructive' });
           return;
         }
       }
@@ -313,9 +347,22 @@ const RankPaperAttempt = () => {
         e.preventDefault();
         return;
       }
+
+      // Block Windows+Shift+S (Windows screenshot)
+      if (e.key === 's' && e.shiftKey && (e.metaKey || e.getModifierState('Meta'))) {
+        e.preventDefault();
+        toast({ title: 'Screenshots blocked', description: 'Taking screenshots is not allowed during the exam', variant: 'destructive' });
+        return;
+      }
     };
     
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', (e) => {
+      // Clear clipboard after PrintScreen keyup
+      if (e.key === 'PrintScreen') {
+        navigator.clipboard.writeText('').catch(() => {});
+      }
+    });
 
     // Disable text selection
     const handleSelectStart = (e: Event) => {
@@ -329,14 +376,25 @@ const RankPaperAttempt = () => {
     };
     document.addEventListener('dragstart', handleDragStart);
 
+    // Add CSS to body for exam mode
+    document.body.classList.add('exam-mode-active');
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('selectstart', handleSelectStart);
       document.removeEventListener('dragstart', handleDragStart);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('cut', handleCut);
+      document.removeEventListener('paste', handlePaste);
+      document.body.classList.remove('exam-mode-active');
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
     };
-  }, [toast]);
+  }, [toast, attempt, windowCloseCount, saveViolations]);
 
   const handleAutoSubmit = async (attemptId: string) => {
     setSubmitting(true);
@@ -529,10 +587,10 @@ const RankPaperAttempt = () => {
                 <span>{answeredCount} of {questions.length} answered</span>
                 {/* Violation indicator */}
                 {(tabSwitchCount > 0 || windowCloseCount > 0) && (
-                  <span className="flex items-center gap-1 text-destructive">
+                  <Badge variant="destructive" className="gap-1">
                     <AlertTriangle className="w-3 h-3" />
-                    {tabSwitchCount + windowCloseCount} violations
-                  </span>
+                    {tabSwitchCount + windowCloseCount} offenses
+                  </Badge>
                 )}
                 {/* Save status indicator */}
                 <span className="flex items-center gap-1">
