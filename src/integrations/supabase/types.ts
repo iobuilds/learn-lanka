@@ -47,25 +47,34 @@ export type Database = {
       class_days: {
         Row: {
           class_month_id: string
+          conducted_at: string | null
+          conducted_by: string | null
           created_at: string
           date: string
           id: string
+          is_conducted: boolean
           is_extra: boolean
           title: string
         }
         Insert: {
           class_month_id: string
+          conducted_at?: string | null
+          conducted_by?: string | null
           created_at?: string
           date: string
           id?: string
+          is_conducted?: boolean
           is_extra?: boolean
           title: string
         }
         Update: {
           class_month_id?: string
+          conducted_at?: string | null
+          conducted_by?: string | null
           created_at?: string
           date?: string
           id?: string
+          is_conducted?: boolean
           is_extra?: boolean
           title?: string
         }
