@@ -15,7 +15,8 @@ import {
   Upload,
   Youtube,
   Loader2,
-  ClipboardList
+  ClipboardList,
+  Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -510,6 +511,17 @@ const ClassDetail = () => {
                           <Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">
                             Extra Session
                           </Badge>
+                        )}
+                        {/* Join Meeting Button - only for paid students */}
+                        {isPaid && day.meeting_link && (
+                          <Button 
+                            size="sm" 
+                            className="gap-1.5"
+                            onClick={() => window.open(day.meeting_link, '_blank')}
+                          >
+                            <Video className="w-4 h-4" />
+                            Join
+                          </Button>
                         )}
                         {isPaid ? (
                           <CheckCircle className="w-5 h-5 text-success" />
