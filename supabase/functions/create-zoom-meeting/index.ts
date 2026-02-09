@@ -3,13 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface ZoomTokenResponse {
   access_token: string;
-  token_type: string;
-  expires_in: number;
 }
 
 interface ZoomMeetingResponse {
@@ -17,6 +16,7 @@ interface ZoomMeetingResponse {
   join_url: string;
   registration_url?: string;
   topic: string;
+  password?: string;
 }
 
 type ZoomUser = {
@@ -44,7 +44,7 @@ async function getZoomAccessToken(): Promise<string> {
         Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-    },
+    }
   );
 
   if (!response.ok) {
@@ -57,13 +57,19 @@ async function getZoomAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-async function getLicensedZoomHostUserId(accessToken: string): Promise<string> {
-  const resp = await fetch("https://api.zoom.us/v2/users?status=active&page_size=100", {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
+// Returns { userId, isLicensed } so we know whether registration is available
+async function getZoomHostUser(
+  accessToken: string
+): Promise<{ userId: string; isLicensed: boolean }> {
+  const resp = await fetch(
+    "https://api.zoom.us/v2/users?status=active&page_size=100",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
 
   if (!resp.ok) {
     const t = await resp.text();
@@ -72,15 +78,20 @@ async function getLicensedZoomHostUserId(accessToken: string): Promise<string> {
 
   const data = await resp.json();
   const users = (data?.users || []) as ZoomUser[];
-  const licensed = users.find((u) => u.type === 2 || u.type === 3);
 
-  if (!licensed?.id) {
-    throw new Error(
-      "No licensed Zoom users found. Please upgrade Zoom to Pro and assign a license to at least one user.",
-    );
+  // Try to find a licensed user first
+  const licensed = users.find((u) => u.type === 2 || u.type === 3);
+  if (licensed?.id) {
+    return { userId: licensed.id, isLicensed: true };
   }
 
-  return licensed.id;
+  // Fall back to any active user (basic)
+  const basic = users.find((u) => u.type === 1);
+  if (basic?.id) {
+    return { userId: basic.id, isLicensed: false };
+  }
+
+  throw new Error("No active Zoom users found in this account.");
 }
 
 serve(async (req) => {
@@ -127,7 +138,9 @@ serve(async (req) => {
 
     if (!classDayId || !topic || !startTime) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: classDayId, topic, startTime" }),
+        JSON.stringify({
+          error: "Missing required fields: classDayId, topic, startTime",
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -135,11 +148,27 @@ serve(async (req) => {
     // Get Zoom access token
     const accessToken = await getZoomAccessToken();
 
-    // IMPORTANT: meeting registration APIs require a licensed (paid) Zoom host user.
-    // If you create meetings under a "Basic" user, adding registrants will fail.
-    const hostUserId = await getLicensedZoomHostUserId(accessToken);
+    // Detect whether account has licensed (Pro) user or only Basic
+    const { userId: hostUserId, isLicensed } = await getZoomHostUser(accessToken);
 
-    // Create Zoom meeting with registration required
+    // Build meeting settings depending on license
+    const meetingSettings: Record<string, unknown> = {
+      host_video: true,
+      participant_video: true,
+      join_before_host: false,
+      mute_upon_entry: true,
+      waiting_room: true,
+    };
+
+    if (isLicensed) {
+      // Pro account: enable registration for unique join links
+      meetingSettings.approval_type = 0; // Auto-approve
+      meetingSettings.registration_type = 1; // Register once
+      meetingSettings.registrants_confirmation_email = false;
+      meetingSettings.registrants_email_notification = false;
+    }
+
+    // Create Zoom meeting
     const meetingResponse = await fetch(
       `https://api.zoom.us/v2/users/${encodeURIComponent(hostUserId)}/meetings`,
       {
@@ -148,27 +177,16 @@ serve(async (req) => {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-      body: JSON.stringify({
-        topic,
-        type: 2, // Scheduled meeting
-        start_time: startTime, // ISO 8601 format
-        duration,
-        timezone: "Asia/Colombo",
-        settings: {
-          host_video: true,
-          participant_video: true,
-          join_before_host: false,
-          mute_upon_entry: true,
-          waiting_room: true,
-          approval_type: 0, // Automatically approve registrants
-          registration_type: 1, // Register once for this meeting
-          registrants_confirmation_email: false,
-          registrants_email_notification: false,
-          // Prevent sharing - each registrant gets unique link
-          meeting_authentication: false,
-        },
-      }),
-    });
+        body: JSON.stringify({
+          topic,
+          type: 2, // Scheduled meeting
+          start_time: startTime,
+          duration,
+          timezone: "Asia/Colombo",
+          settings: meetingSettings,
+        }),
+      }
+    );
 
     if (!meetingResponse.ok) {
       const errorText = await meetingResponse.text();
@@ -183,7 +201,14 @@ serve(async (req) => {
 
     const meetingData: ZoomMeetingResponse = await meetingResponse.json();
 
-    // Update class_day with zoom meeting info using service role
+    // Decide which URL to store
+    // For licensed: use registration_url so students get unique links
+    // For basic: use join_url (no registration available)
+    const joinUrl = isLicensed
+      ? meetingData.registration_url || meetingData.join_url
+      : meetingData.join_url;
+
+    // Update class_day with zoom meeting info
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -192,9 +217,9 @@ serve(async (req) => {
     const { error: updateError } = await supabaseAdmin
       .from("class_days")
       .update({
-        zoom_meeting_id: meetingData.id.toString(),
-        zoom_join_url: meetingData.registration_url || meetingData.join_url,
-        meeting_link: meetingData.registration_url || meetingData.join_url,
+        zoom_meeting_id: isLicensed ? meetingData.id.toString() : null, // Only store ID if registration works
+        zoom_join_url: joinUrl,
+        meeting_link: joinUrl,
       })
       .eq("id", classDayId);
 
@@ -210,14 +235,20 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         meetingId: meetingData.id,
-        joinUrl: meetingData.registration_url || meetingData.join_url,
+        joinUrl,
+        isLicensed,
+        message: isLicensed
+          ? "Zoom meeting created with registration (unique links per student)"
+          : "Zoom meeting created with standard link (upgrade to Pro for unique student links)",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
