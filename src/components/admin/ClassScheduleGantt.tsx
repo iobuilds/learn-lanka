@@ -1,15 +1,17 @@
-import { Calendar, ChevronLeft, ChevronRight, Bell, Loader2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Bell, Loader2, List, Grid3X3, CalendarDays } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, getDaysInMonth, parseISO, getDate, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, getDaysInMonth, parseISO, getDate, isToday, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ClassWithDays {
   id: string;
@@ -25,49 +27,65 @@ interface ClassWithDays {
   }[];
 }
 
+type ViewMode = 'day' | 'week' | 'month';
+
 const ClassScheduleGantt = () => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const queryClient = useQueryClient();
 
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const daysInMonth = getDaysInMonth(currentMonth);
-  const yearMonth = format(currentMonth, 'yyyy-MM');
+  // Calculate date range based on view mode
+  const getDateRange = () => {
+    switch (viewMode) {
+      case 'day':
+        return { start: currentDate, end: currentDate };
+      case 'week':
+        return { 
+          start: startOfWeek(currentDate, { weekStartsOn: 1 }), 
+          end: endOfWeek(currentDate, { weekStartsOn: 1 }) 
+        };
+      case 'month':
+      default:
+        return { start: startOfMonth(currentDate), end: endOfMonth(currentDate) };
+    }
+  };
 
-  // Fetch all classes with their days for this month
+  const dateRange = getDateRange();
+  const yearMonth = format(currentDate, 'yyyy-MM');
+
+  // Fetch all classes with their days
   const { data: classesWithDays = [], isLoading } = useQuery({
-    queryKey: ['gantt-schedule', yearMonth],
+    queryKey: ['gantt-schedule', format(dateRange.start, 'yyyy-MM-dd'), format(dateRange.end, 'yyyy-MM-dd')],
     queryFn: async () => {
-      // Get all classes
       const { data: classes, error: classError } = await supabase
         .from('classes')
         .select('id, title')
         .order('title');
       if (classError) throw classError;
 
-      // Get class months
-      const { data: classMonths, error: monthError } = await supabase
-        .from('class_months')
-        .select('id, class_id')
-        .eq('year_month', yearMonth);
-      if (monthError) throw monthError;
+      // Get class days in date range
+      const { data: classDays, error: daysError } = await supabase
+        .from('class_days')
+        .select(`
+          id, date, title, start_time, end_time, is_conducted, is_extra,
+          class_month:class_month_id (class_id)
+        `)
+        .gte('date', format(dateRange.start, 'yyyy-MM-dd'))
+        .lte('date', format(dateRange.end, 'yyyy-MM-dd'));
+      if (daysError) throw daysError;
 
-      // Get class days for this month
-      const monthIds = classMonths?.map(m => m.id) || [];
-      let classDays: any[] = [];
-      if (monthIds.length > 0) {
-        const { data, error } = await supabase
-          .from('class_days')
-          .select('*')
-          .in('class_month_id', monthIds);
-        if (error) throw error;
-        classDays = data || [];
-      }
-
-      // Map classes with their days
       return (classes || []).map(cls => {
-        const classMonth = classMonths?.find(m => m.class_id === cls.id);
-        const days = classDays.filter(d => d.class_month_id === classMonth?.id);
+        const days = (classDays || [])
+          .filter((d: any) => d.class_month?.class_id === cls.id)
+          .map((d: any) => ({
+            id: d.id,
+            date: d.date,
+            title: d.title,
+            start_time: d.start_time,
+            end_time: d.end_time,
+            is_conducted: d.is_conducted,
+            is_extra: d.is_extra,
+          }));
         return { ...cls, days };
       }).filter(cls => cls.days.length > 0) as ClassWithDays[];
     },
@@ -76,9 +94,8 @@ const ClassScheduleGantt = () => {
   // Publish schedule mutation
   const publishMutation = useMutation({
     mutationFn: async (classData: ClassWithDays) => {
-      const monthName = format(currentMonth, 'MMMM yyyy');
+      const monthName = format(currentDate, 'MMMM yyyy');
       
-      // Format schedule details
       const scheduleDetails = classData.days
         .sort((a, b) => a.date.localeCompare(b.date))
         .map(day => {
@@ -91,7 +108,6 @@ const ClassScheduleGantt = () => {
         })
         .join('\n');
 
-      // Create notification with full schedule
       await supabase.from('notifications').insert({
         title: `📅 ${classData.title} - ${monthName} Schedule`,
         message: `Class schedule for ${monthName} has been published!\n\n${scheduleDetails}\n\n${classData.days.length} classes scheduled.`,
@@ -99,10 +115,8 @@ const ClassScheduleGantt = () => {
         target_ref: classData.id,
       });
 
-      // Get previous month for payment check
-      const prevMonth = format(subMonths(currentMonth, 1), 'yyyy-MM');
+      const prevMonth = format(subMonths(currentDate, 1), 'yyyy-MM');
       
-      // Send SMS only to students who paid in previous month
       await supabase.functions.invoke('send-sms-notification', {
         body: {
           type: 'schedule_published',
@@ -113,10 +127,6 @@ const ClassScheduleGantt = () => {
             className: classData.title,
             month: monthName,
             classCount: classData.days.length,
-            scheduleDetails: classData.days.map(d => ({
-              date: format(parseISO(d.date), 'MMM d'),
-              time: d.start_time ? formatTime(d.start_time) : null,
-            })),
           },
         },
       });
@@ -124,11 +134,10 @@ const ClassScheduleGantt = () => {
       return classData;
     },
     onSuccess: (data) => {
-      toast.success(`Schedule published for ${data.title}! SMS sent to paid students.`);
-      queryClient.invalidateQueries({ queryKey: ['gantt-schedule'] });
+      toast.success(`Schedule published for ${data.title}!`);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to publish schedule');
+      toast.error(error.message || 'Failed to publish');
     },
   });
 
@@ -139,33 +148,90 @@ const ClassScheduleGantt = () => {
     return `${hour % 12 || 12}:${m} ${ampm}`;
   };
 
-  const navigatePrev = () => setCurrentMonth(subMonths(currentMonth, 1));
-  const navigateNext = () => setCurrentMonth(addMonths(currentMonth, 1));
-  const goToThisMonth = () => setCurrentMonth(new Date());
+  const navigate = (direction: 'prev' | 'next') => {
+    const fn = direction === 'prev' 
+      ? viewMode === 'day' ? subDays : viewMode === 'week' ? subWeeks : subMonths
+      : viewMode === 'day' ? addDays : viewMode === 'week' ? addWeeks : addMonths;
+    setCurrentDate(fn(currentDate, 1));
+  };
 
-  // Generate day numbers for header
-  const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const todayDate = isToday(currentMonth) ? new Date().getDate() : null;
+  const goToToday = () => setCurrentDate(new Date());
+
+  // Generate column headers based on view
+  const getColumns = () => {
+    if (viewMode === 'day') {
+      return [{ date: currentDate, label: format(currentDate, 'd'), fullLabel: format(currentDate, 'EEEE, MMM d') }];
+    } else if (viewMode === 'week') {
+      const days = [];
+      let day = dateRange.start;
+      while (day <= dateRange.end) {
+        days.push({ date: day, label: format(day, 'EEE d'), fullLabel: format(day, 'EEEE, MMM d') });
+        day = addDays(day, 1);
+      }
+      return days;
+    } else {
+      const daysInMonth = getDaysInMonth(currentDate);
+      return Array.from({ length: daysInMonth }, (_, i) => {
+        const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
+        return { date: day, label: String(i + 1), fullLabel: format(day, 'EEEE, MMM d') };
+      });
+    }
+  };
+
+  const columns = getColumns();
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+  // Get header label
+  const getHeaderLabel = () => {
+    if (viewMode === 'day') return format(currentDate, 'EEEE, MMMM d, yyyy');
+    if (viewMode === 'week') return `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`;
+    return format(currentDate, 'MMMM yyyy');
+  };
 
   return (
     <Card className="card-elevated overflow-hidden">
       <CardHeader className="pb-3 border-b">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
             Class Schedule
           </CardTitle>
+          
+          {/* View Mode Toggle */}
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+            <TabsList className="h-8">
+              <TabsTrigger value="day" className="text-xs px-2 gap-1">
+                <List className="w-3 h-3" />
+                Day
+              </TabsTrigger>
+              <TabsTrigger value="week" className="text-xs px-2 gap-1">
+                <CalendarDays className="w-3 h-3" />
+                Week
+              </TabsTrigger>
+              <TabsTrigger value="month" className="text-xs px-2 gap-1">
+                <Grid3X3 className="w-3 h-3" />
+                Month
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between mt-3">
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigatePrev}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('prev')}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" className="h-8 px-3 text-xs font-semibold min-w-[120px]" onClick={goToThisMonth}>
-              {format(currentMonth, 'MMMM yyyy')}
+            <Button variant="outline" size="sm" className="h-8 px-3 text-xs font-medium" onClick={goToToday}>
+              Today
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigateNext}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('next')}>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
+          <span className="text-sm font-semibold text-foreground">
+            {getHeaderLabel()}
+          </span>
         </div>
       </CardHeader>
 
@@ -177,110 +243,120 @@ const ClassScheduleGantt = () => {
         ) : classesWithDays.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Calendar className="w-12 h-12 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">No classes scheduled this month</p>
+            <p className="text-muted-foreground">No classes scheduled</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[800px]">
-              {/* Header with day numbers */}
-              <thead>
-                <tr className="border-b">
-                  <th className="sticky left-0 z-10 bg-card p-2 text-left text-sm font-medium text-muted-foreground min-w-[180px] border-r">
-                    Class
-                  </th>
-                  {dayNumbers.map(day => (
-                    <th 
-                      key={day} 
-                      className={cn(
-                        "p-1 text-center text-xs font-medium min-w-[28px]",
-                        todayDate === day && format(currentMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {day}
+          <ScrollArea className={viewMode === 'day' ? '' : 'max-h-[400px]'}>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse min-w-[600px]">
+                <thead className="sticky top-0 z-10 bg-card">
+                  <tr className="border-b">
+                    <th className="sticky left-0 z-20 bg-card p-2 text-left text-sm font-medium text-muted-foreground min-w-[160px] border-r">
+                      Class
                     </th>
-                  ))}
-                  <th className="sticky right-0 z-10 bg-card p-2 text-center text-sm font-medium text-muted-foreground min-w-[80px] border-l">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {classesWithDays.map((cls, index) => {
-                  // Create a map of days for quick lookup
-                  const dayMap = new Map(
-                    cls.days.map(d => [getDate(parseISO(d.date)), d])
-                  );
-
-                  return (
-                    <tr key={cls.id} className={cn("border-b", index % 2 === 0 ? "bg-muted/20" : "")}>
-                      <td className="sticky left-0 z-10 bg-card p-2 border-r">
-                        <Link 
-                          to={`/admin/classes/${cls.id}/content`}
-                          className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate block max-w-[160px]"
-                        >
-                          {cls.title}
-                        </Link>
-                      </td>
-                      {dayNumbers.map(day => {
-                        const classDay = dayMap.get(day);
-                        return (
-                          <td key={day} className="p-0.5">
-                            {classDay ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Link to={`/admin/classes/${cls.id}/content`}>
-                                    <div className={cn(
-                                      "h-6 rounded-sm cursor-pointer transition-all hover:scale-110",
-                                      classDay.is_conducted 
-                                        ? "bg-success/60" 
-                                        : classDay.is_extra 
-                                          ? "bg-accent" 
-                                          : "bg-primary"
-                                    )} />
-                                  </Link>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">
-                                  <p className="font-medium">{classDay.title}</p>
-                                  {classDay.start_time && (
-                                    <p className="text-muted-foreground">
-                                      {formatTime(classDay.start_time)}
-                                      {classDay.end_time && ` - ${formatTime(classDay.end_time)}`}
-                                    </p>
-                                  )}
-                                  {classDay.is_conducted && <Badge className="mt-1 bg-success">Done</Badge>}
-                                  {classDay.is_extra && <Badge className="mt-1 bg-accent">Extra</Badge>}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <div className="h-6" />
+                    {columns.map((col, i) => (
+                      <Tooltip key={i}>
+                        <TooltipTrigger asChild>
+                          <th 
+                            className={cn(
+                              "p-1 text-center font-medium",
+                              viewMode === 'month' ? "text-xs min-w-[28px]" : "text-xs min-w-[60px]",
+                              format(col.date, 'yyyy-MM-dd') === todayStr
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground"
                             )}
-                          </td>
-                        );
-                      })}
-                      <td className="sticky right-0 z-10 bg-card p-1 border-l">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs gap-1"
-                          onClick={() => publishMutation.mutate(cls)}
-                          disabled={publishMutation.isPending}
-                        >
-                          {publishMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Bell className="w-3 h-3" />
-                          )}
-                          Publish
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          >
+                            {col.label}
+                          </th>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {col.fullLabel}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                    <th className="sticky right-0 z-20 bg-card p-2 text-center text-sm font-medium text-muted-foreground min-w-[80px] border-l">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classesWithDays.map((cls, index) => {
+                    const dayMap = new Map(
+                      cls.days.map(d => [format(parseISO(d.date), 'yyyy-MM-dd'), d])
+                    );
+
+                    return (
+                      <tr key={cls.id} className={cn("border-b", index % 2 === 0 ? "bg-muted/20" : "")}>
+                        <td className="sticky left-0 z-10 bg-card p-2 border-r">
+                          <Link 
+                            to={`/admin/classes/${cls.id}/content`}
+                            className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate block max-w-[140px]"
+                          >
+                            {cls.title}
+                          </Link>
+                        </td>
+                        {columns.map((col, i) => {
+                          const dateKey = format(col.date, 'yyyy-MM-dd');
+                          const classDay = dayMap.get(dateKey);
+                          return (
+                            <td key={i} className="p-0.5">
+                              {classDay ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Link to={`/admin/classes/${cls.id}/content`}>
+                                      <div className={cn(
+                                        "h-6 rounded-sm cursor-pointer transition-all hover:scale-110",
+                                        classDay.is_conducted 
+                                          ? "bg-success/60" 
+                                          : classDay.is_extra 
+                                            ? "bg-accent" 
+                                            : "bg-primary"
+                                      )} />
+                                    </Link>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs max-w-[200px]">
+                                    <p className="font-medium">{classDay.title}</p>
+                                    {classDay.start_time && (
+                                      <p className="text-muted-foreground">
+                                        {formatTime(classDay.start_time)}
+                                        {classDay.end_time && ` - ${formatTime(classDay.end_time)}`}
+                                      </p>
+                                    )}
+                                    <div className="flex gap-1 mt-1">
+                                      {classDay.is_conducted && <Badge className="bg-success text-[10px]">Done</Badge>}
+                                      {classDay.is_extra && <Badge className="bg-accent text-[10px]">Extra</Badge>}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <div className="h-6" />
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="sticky right-0 z-10 bg-card p-1 border-l">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs gap-1"
+                            onClick={() => publishMutation.mutate(cls)}
+                            disabled={publishMutation.isPending}
+                          >
+                            {publishMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Bell className="w-3 h-3" />
+                            )}
+                            Publish
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </ScrollArea>
         )}
 
         {/* Legend */}
