@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -116,8 +117,15 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="p-2 border-t border-sidebar-border">
+        {/* Theme Toggle & Logout */}
+        <div className="p-2 border-t border-sidebar-border space-y-1">
+          <div className={cn(
+            "flex items-center px-3 py-1",
+            collapsed ? "justify-center" : "gap-3"
+          )}>
+            <ThemeToggle />
+            {!collapsed && <span className="text-sm text-sidebar-foreground">Theme</span>}
+          </div>
           <Link 
             to="/login"
             className={cn(
@@ -141,13 +149,16 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             </div>
             <span className="font-bold">Admin</span>
           </Link>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
         </header>
 
         {/* Mobile Menu */}
