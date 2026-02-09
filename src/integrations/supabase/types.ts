@@ -51,9 +51,11 @@ export type Database = {
           conducted_by: string | null
           created_at: string
           date: string
+          end_time: string | null
           id: string
           is_conducted: boolean
           is_extra: boolean
+          start_time: string | null
           title: string
         }
         Insert: {
@@ -62,9 +64,11 @@ export type Database = {
           conducted_by?: string | null
           created_at?: string
           date: string
+          end_time?: string | null
           id?: string
           is_conducted?: boolean
           is_extra?: boolean
+          start_time?: string | null
           title: string
         }
         Update: {
@@ -73,9 +77,11 @@ export type Database = {
           conducted_by?: string | null
           created_at?: string
           date?: string
+          end_time?: string | null
           id?: string
           is_conducted?: boolean
           is_extra?: boolean
+          start_time?: string | null
           title?: string
         }
         Relationships: [
