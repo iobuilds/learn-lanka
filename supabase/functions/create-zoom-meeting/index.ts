@@ -15,9 +15,15 @@ interface ZoomTokenResponse {
 interface ZoomMeetingResponse {
   id: number;
   join_url: string;
-  registration_url: string;
+  registration_url?: string;
   topic: string;
 }
+
+type ZoomUser = {
+  id: string;
+  email: string;
+  type: number; // 1 basic, 2 licensed, 3 on-prem
+};
 
 async function getZoomAccessToken(): Promise<string> {
   const accountId = Deno.env.get("ZOOM_ACCOUNT_ID");
@@ -29,7 +35,7 @@ async function getZoomAccessToken(): Promise<string> {
   }
 
   const credentials = btoa(`${clientId}:${clientSecret}`);
-  
+
   const response = await fetch(
     `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`,
     {
@@ -38,17 +44,43 @@ async function getZoomAccessToken(): Promise<string> {
         Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-    }
+    },
   );
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error("Zoom token error:", error);
+    const errorText = await response.text();
+    console.error("Zoom token error:", errorText);
     throw new Error(`Failed to get Zoom access token: ${response.status}`);
   }
 
   const data: ZoomTokenResponse = await response.json();
   return data.access_token;
+}
+
+async function getLicensedZoomHostUserId(accessToken: string): Promise<string> {
+  const resp = await fetch("https://api.zoom.us/v2/users?status=active&page_size=100", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error(`Failed to list Zoom users [${resp.status}]: ${t}`);
+  }
+
+  const data = await resp.json();
+  const users = (data?.users || []) as ZoomUser[];
+  const licensed = users.find((u) => u.type === 2 || u.type === 3);
+
+  if (!licensed?.id) {
+    throw new Error(
+      "No licensed Zoom users found. Please upgrade Zoom to Pro and assign a license to at least one user.",
+    );
+  }
+
+  return licensed.id;
 }
 
 serve(async (req) => {
@@ -103,13 +135,19 @@ serve(async (req) => {
     // Get Zoom access token
     const accessToken = await getZoomAccessToken();
 
+    // IMPORTANT: meeting registration APIs require a licensed (paid) Zoom host user.
+    // If you create meetings under a "Basic" user, adding registrants will fail.
+    const hostUserId = await getLicensedZoomHostUserId(accessToken);
+
     // Create Zoom meeting with registration required
-    const meetingResponse = await fetch("https://api.zoom.us/v2/users/me/meetings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+    const meetingResponse = await fetch(
+      `https://api.zoom.us/v2/users/${encodeURIComponent(hostUserId)}/meetings`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
       body: JSON.stringify({
         topic,
         type: 2, // Scheduled meeting
