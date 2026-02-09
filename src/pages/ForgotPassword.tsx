@@ -328,10 +328,11 @@ const ForgotPassword = () => {
 
       {/* Footer */}
       <footer className="py-6 px-4 text-center">
-        <p className="text-slate-400 text-sm">
-          © {new Date().getFullYear()} A/L ICT. All rights reserved.
+        <p className="text-slate-400 text-xs">
+          © {new Date().getFullYear()} All rights reserved. A project from IO Builds LLC
         </p>
       </footer>
+
     </div>
   );
 };

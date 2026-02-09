@@ -135,7 +135,8 @@ const Register = () => {
     try {
       // Format phone for email-like signup
       const formattedPhone = phone.replace(/\D/g, '');
-      const phoneEmail = `${formattedPhone}@phone.ict.alstudent.lk`;
+      const phoneEmail = `${formattedPhone}@phone.alict.lk`;
+
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: phoneEmail,
@@ -531,11 +532,11 @@ const Register = () => {
 
       {/* Footer */}
       <footer className="py-6 px-4 text-center">
-        <p className="text-slate-400 text-sm">
-          © {new Date().getFullYear()} A/L ICT. All rights reserved.
-          © {new Date().getFullYear()} IO Builds. All rights reserved.
+        <p className="text-slate-400 text-xs">
+          © {new Date().getFullYear()} All rights reserved. A project from IO Builds LLC
         </p>
       </footer>
+
     </div>
   );
 };
