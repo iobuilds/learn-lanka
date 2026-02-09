@@ -65,7 +65,7 @@ const ClassDetail = () => {
       if (!user || !id) return null;
       const { data, error } = await supabase
         .from('class_enrollments')
-        .select('*')
+        .select('*, payment_received_at, admin_note')
         .eq('user_id', user.id)
         .eq('class_id', id)
         .eq('status', 'ACTIVE')
@@ -221,7 +221,12 @@ const ClassDetail = () => {
   };
 
   const isEnrolled = !!enrollment;
-  const paymentStatus = currentPayment?.status === 'APPROVED' ? 'PAID' 
+  const isPrivateClass = classData?.is_private || false;
+  
+  // For private classes: always consider as paid (free access)
+  // For public classes: check payment status
+  const paymentStatus = isPrivateClass ? 'PAID' 
+    : currentPayment?.status === 'APPROVED' ? 'PAID' 
     : currentPayment?.status === 'PENDING' ? 'PENDING' 
     : 'UNPAID';
   const isPaid = paymentStatus === 'PAID';
@@ -561,73 +566,112 @@ const ClassDetail = () => {
 
           {/* Payments Tab */}
           <TabsContent value="payments" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Payment Status */}
+            {isPrivateClass ? (
+              // Private class - show payment info from admin
               <Card className="card-elevated">
                 <CardHeader>
-                  <CardTitle className="text-lg">
-                    {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} Payment
-                  </CardTitle>
+                  <CardTitle className="text-lg">Payment Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
-                    <span className="text-muted-foreground">Monthly Fee</span>
-                    <span className="text-xl font-bold">
-                      Rs. {classData.monthly_fee_amount.toLocaleString()}
-                    </span>
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-success/10">
+                    <CheckCircle className="w-6 h-6 text-success" />
+                    <div>
+                      <p className="font-medium text-success">Private Class - Free Access</p>
+                      <p className="text-sm text-muted-foreground">All materials are unlocked for enrolled students</p>
+                    </div>
                   </div>
 
-                  <div className={cn(
-                    "flex items-center gap-3 p-4 rounded-lg",
-                    paymentStatus === 'PAID' && "bg-success/10",
-                    paymentStatus === 'PENDING' && "bg-warning/10",
-                    paymentStatus === 'UNPAID' && "bg-destructive/10"
-                  )}>
-                    {paymentStatus === 'PAID' && (
-                      <>
-                        <CheckCircle className="w-6 h-6 text-success" />
-                        <div>
-                          <p className="font-medium text-success">Payment Verified</p>
-                          <p className="text-sm text-muted-foreground">All materials unlocked</p>
-                        </div>
-                      </>
-                    )}
-                    {paymentStatus === 'PENDING' && (
-                      <>
-                        <Clock className="w-6 h-6 text-warning" />
-                        <div>
-                          <p className="font-medium text-warning">Verification Pending</p>
-                          <p className="text-sm text-muted-foreground">We'll verify within 24 hours</p>
-                        </div>
-                      </>
-                    )}
-                    {paymentStatus === 'UNPAID' && (
-                      <>
-                        <AlertCircle className="w-6 h-6 text-destructive" />
-                        <div>
-                          <p className="font-medium text-destructive">Payment Required</p>
-                          <p className="text-sm text-muted-foreground">Pay to access materials</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {paymentStatus !== 'PAID' && id && (
-                    <PaymentUploadForm 
-                      paymentType="CLASS_MONTH"
-                      refId={`${id}-${selectedMonth}`}
-                      amount={classData.monthly_fee_amount}
-                      title={`${selectedMonth} Fee`}
-                      currentStatus={currentPayment?.status as 'PENDING' | 'APPROVED' | 'REJECTED' | null}
-                      onSuccess={() => queryClient.invalidateQueries({ queryKey: ['class-payment'] })}
-                    />
+                  {enrollment?.payment_received_at && (
+                    <div className="p-4 rounded-lg bg-muted">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Payment Record</span>
+                      </div>
+                      <p className="text-lg font-semibold">
+                        {new Date(enrollment.payment_received_at).toLocaleDateString('en-US', { 
+                          weekday: 'long',
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Date recorded by administrator for your reference
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
+            ) : (
+              // Public class - show payment upload form
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Payment Status */}
+                <Card className="card-elevated">
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} Payment
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+                      <span className="text-muted-foreground">Monthly Fee</span>
+                      <span className="text-xl font-bold">
+                        Rs. {classData.monthly_fee_amount.toLocaleString()}
+                      </span>
+                    </div>
 
-              {/* Bank Accounts */}
-              <BankAccountsList />
-            </div>
+                    <div className={cn(
+                      "flex items-center gap-3 p-4 rounded-lg",
+                      paymentStatus === 'PAID' && "bg-success/10",
+                      paymentStatus === 'PENDING' && "bg-warning/10",
+                      paymentStatus === 'UNPAID' && "bg-destructive/10"
+                    )}>
+                      {paymentStatus === 'PAID' && (
+                        <>
+                          <CheckCircle className="w-6 h-6 text-success" />
+                          <div>
+                            <p className="font-medium text-success">Payment Verified</p>
+                            <p className="text-sm text-muted-foreground">All materials unlocked</p>
+                          </div>
+                        </>
+                      )}
+                      {paymentStatus === 'PENDING' && (
+                        <>
+                          <Clock className="w-6 h-6 text-warning" />
+                          <div>
+                            <p className="font-medium text-warning">Verification Pending</p>
+                            <p className="text-sm text-muted-foreground">We'll verify within 24 hours</p>
+                          </div>
+                        </>
+                      )}
+                      {paymentStatus === 'UNPAID' && (
+                        <>
+                          <AlertCircle className="w-6 h-6 text-destructive" />
+                          <div>
+                            <p className="font-medium text-destructive">Payment Required</p>
+                            <p className="text-sm text-muted-foreground">Pay to access materials</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {paymentStatus !== 'PAID' && id && (
+                      <PaymentUploadForm 
+                        paymentType="CLASS_MONTH"
+                        refId={`${id}-${selectedMonth}`}
+                        amount={classData.monthly_fee_amount}
+                        title={`${selectedMonth} Fee`}
+                        currentStatus={currentPayment?.status as 'PENDING' | 'APPROVED' | 'REJECTED' | null}
+                        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['class-payment'] })}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Bank Accounts */}
+                <BankAccountsList />
+              </div>
+            )}
           </TabsContent>
 
           {/* Announcements Tab */}

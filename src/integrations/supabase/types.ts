@@ -81,23 +81,29 @@ export type Database = {
       }
       class_enrollments: {
         Row: {
+          admin_note: string | null
           class_id: string
           enrolled_at: string
           id: string
+          payment_received_at: string | null
           status: string
           user_id: string
         }
         Insert: {
+          admin_note?: string | null
           class_id: string
           enrolled_at?: string
           id?: string
+          payment_received_at?: string | null
           status?: string
           user_id: string
         }
         Update: {
+          admin_note?: string | null
           class_id?: string
           enrolled_at?: string
           id?: string
+          payment_received_at?: string | null
           status?: string
           user_id?: string
         }
