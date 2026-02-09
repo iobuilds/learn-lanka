@@ -11,13 +11,15 @@ import {
   Eye,
   EyeOff,
   Users,
-  Trophy
+  Trophy,
+  Play
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import StudentLayout from '@/components/layouts/StudentLayout';
+import YouTubeEmbed from '@/components/YouTubeEmbed';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -272,25 +274,22 @@ const RankPaperResults = () => {
               </div>
             )}
 
-            {/* Review Video - Only show after results published */}
+            {/* Review Video - Embedded Player */}
             {marks?.published_at && paper.review_video_url && (
-              <a 
-                href={paper.review_video_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Eye className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Watch Review Video</p>
-                    <p className="text-sm text-muted-foreground">Learn from this exam</p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 ml-auto text-muted-foreground" />
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Play className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold">Review Video</h3>
                 </div>
-              </a>
+                <YouTubeEmbed 
+                  url={paper.review_video_url} 
+                  title={`${paper.title} - Review`}
+                  className="shadow-lg"
+                />
+                <p className="text-sm text-muted-foreground text-center">
+                  Watch the review to understand the solutions
+                </p>
+              </div>
             )}
 
             {/* Leaderboard Link */}
