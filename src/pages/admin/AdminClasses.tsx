@@ -160,7 +160,7 @@ const AdminClasses = () => {
           description: description || null,
           grade_min: parseInt(gradeMin),
           grade_max: parseInt(gradeMax),
-          monthly_fee_amount: parseInt(monthlyFee),
+          monthly_fee_amount: isPrivate ? 0 : parseInt(monthlyFee),
           is_private: isPrivate,
           private_code: isPrivate ? generatePrivateCode() : null,
           max_students: isPrivate && maxStudents ? parseInt(maxStudents) : null,
@@ -189,7 +189,7 @@ const AdminClasses = () => {
           description: description || null,
           grade_min: parseInt(gradeMin),
           grade_max: parseInt(gradeMax),
-          monthly_fee_amount: parseInt(monthlyFee),
+          monthly_fee_amount: isPrivate ? 0 : parseInt(monthlyFee),
           is_private: isPrivate,
           private_code: isPrivate ? (editingClass.private_code || generatePrivateCode()) : null,
           max_students: isPrivate && maxStudents ? parseInt(maxStudents) : null,
@@ -371,16 +371,19 @@ const AdminClasses = () => {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fee">Monthly Fee (Rs.)</Label>
-                  <Input 
-                    id="fee" 
-                    type="number" 
-                    placeholder="3500"
-                    value={monthlyFee}
-                    onChange={(e) => setMonthlyFee(e.target.value)}
-                  />
-                </div>
+                {/* Monthly fee only for public classes */}
+                {!isPrivate && (
+                  <div className="space-y-2">
+                    <Label htmlFor="fee">Monthly Fee (Rs.)</Label>
+                    <Input 
+                      id="fee" 
+                      type="number" 
+                      placeholder="3500"
+                      value={monthlyFee}
+                      onChange={(e) => setMonthlyFee(e.target.value)}
+                    />
+                  </div>
+                )}
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div className="space-y-0.5">
                     <Label className="flex items-center gap-2">
@@ -420,7 +423,7 @@ const AdminClasses = () => {
                 <Button variant="outline" onClick={closeDialog}>Cancel</Button>
                 <Button 
                   onClick={handleSubmit}
-                  disabled={(editingClass ? updateMutation.isPending : createMutation.isPending) || !title || !gradeMin || !gradeMax || !monthlyFee}
+                  disabled={(editingClass ? updateMutation.isPending : createMutation.isPending) || !title || !gradeMin || !gradeMax || (!isPrivate && !monthlyFee)}
                 >
                   {editingClass 
                     ? (updateMutation.isPending ? 'Updating...' : 'Update Class')
