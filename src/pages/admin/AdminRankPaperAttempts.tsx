@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPhoneDisplay } from '@/lib/utils';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
@@ -549,7 +550,7 @@ const AdminRankPaperAttempts = () => {
                           <p className="font-medium">
                             {attempt.profile?.first_name} {attempt.profile?.last_name}
                           </p>
-                          <p className="text-xs text-muted-foreground">{attempt.profile?.phone}</p>
+                          <p className="text-xs text-muted-foreground">{formatPhoneDisplay(attempt.profile?.phone)}</p>
                         </div>
                       </TableCell>
                       <TableCell>

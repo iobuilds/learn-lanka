@@ -46,6 +46,9 @@ import AdminPapers from "./pages/admin/AdminPapers";
 import AdminBulkSms from "./pages/admin/AdminBulkSms";
 import AdminContactMessages from "./pages/admin/AdminContactMessages";
 import Contact from "./pages/Contact";
+import Terms from "./pages/Terms";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import RefundPolicy from "./pages/RefundPolicy";
 
 import NotFound from "./pages/NotFound";
 
@@ -67,6 +70,9 @@ const App = () => (
               <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
               <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/refund-policy" element={<RefundPolicy />} />
 
               {/* Papers - accessible without login (for free papers only) */}
               <Route path="/papers" element={<Papers />} />
