@@ -19,6 +19,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 
+import * as React from 'react';
+
 interface StudentLayoutProps {
   children: React.ReactNode;
 }
@@ -31,7 +33,7 @@ const navItems = [
   { path: '/shop', label: 'Shop', icon: ShoppingBag },
 ];
 
-const StudentLayout = ({ children }: StudentLayoutProps) => {
+const StudentLayout = React.forwardRef<HTMLDivElement, StudentLayoutProps>(({ children }, ref) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut, isAdmin, isModerator } = useAuth();
@@ -55,7 +57,7 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div ref={ref} className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="page-container py-0">
@@ -197,6 +199,7 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
       </main>
     </div>
   );
-};
+});
+StudentLayout.displayName = "StudentLayout";
 
 export default StudentLayout;
