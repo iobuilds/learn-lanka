@@ -1012,10 +1012,10 @@ const AdminClassContent = () => {
             </div>
 
             {/* Zoom Meeting Integration */}
-            <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="space-y-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
               <div className="flex items-center gap-2">
-                <Video className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <Label className="text-blue-700 dark:text-blue-300 font-medium">Zoom Meeting</Label>
+                <Video className="w-4 h-4 text-primary" />
+                <Label className="text-foreground font-medium">Zoom Meeting</Label>
               </div>
               
               {!dayMeetingLink ? (
@@ -1026,7 +1026,7 @@ const AdminClassContent = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full gap-2 border-blue-300 hover:bg-blue-100 dark:border-blue-700 dark:hover:bg-blue-900/50"
+                    className="w-full gap-2"
                     onClick={() => {
                       if (editingDay) {
                         handleCreateZoomMeeting(editingDay.id);
@@ -1049,12 +1049,12 @@ const AdminClassContent = () => {
                     )}
                   </Button>
                   {!editingDay && (
-                    <p className="text-xs text-amber-600">
+                    <p className="text-xs text-warning">
                       Save this day first, then edit it to create a Zoom meeting
                     </p>
                   )}
                   {(!dayDate || !dayStartTime) && editingDay && (
-                    <p className="text-xs text-amber-600">
+                    <p className="text-xs text-warning">
                       Set date and start time first
                     </p>
                   )}

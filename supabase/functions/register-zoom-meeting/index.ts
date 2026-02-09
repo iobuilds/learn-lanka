@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface ZoomTokenResponse {
@@ -39,6 +39,8 @@ async function getZoomAccessToken(): Promise<string> {
   );
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Zoom token error:", errorText);
     throw new Error(`Failed to get Zoom access token: ${response.status}`);
   }
 
@@ -48,7 +50,7 @@ async function getZoomAccessToken(): Promise<string> {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -91,14 +93,18 @@ serve(async (req) => {
     );
 
     // Check if student already has a unique link
-    const { data: existingLink } = await supabaseAdmin
+    const { data: existingLink, error: existingLinkError } = await supabaseAdmin
       .from("student_meeting_links")
       .select("join_url")
       .eq("class_day_id", classDayId)
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
-    if (existingLink) {
+    if (existingLinkError) {
+      console.error("Error checking existing meeting link:", existingLinkError);
+    }
+
+    if (existingLink?.join_url) {
       return new Response(
         JSON.stringify({ success: true, joinUrl: existingLink.join_url }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -180,6 +186,13 @@ serve(async (req) => {
     // Get Zoom access token and register student
     const accessToken = await getZoomAccessToken();
 
+    // Zoom rejects some "local" domains; ensure a real-looking email
+    const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const authEmail = userData.user.email || "";
+    const phoneDigits = (profile.phone || "").replace(/[^\d]/g, "");
+    const fallbackEmail = `student-${phoneDigits || userId}@example.com`;
+    const email = isValidEmail(authEmail) ? authEmail : fallbackEmail;
+
     const registerResponse = await fetch(
       `https://api.zoom.us/v2/meetings/${classDay.zoom_meeting_id}/registrants`,
       {
@@ -189,19 +202,20 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: `${profile.phone}@student.local`, // Use phone as pseudo-email
+          email,
           first_name: profile.first_name,
           last_name: profile.last_name || "Student",
-          auto_approve: true,
         }),
       }
     );
 
     if (!registerResponse.ok) {
-      const error = await registerResponse.text();
-      console.error("Zoom registration error:", error);
+      const errorText = await registerResponse.text();
+      console.error("Zoom registration error:", errorText);
       return new Response(
-        JSON.stringify({ error: "Failed to register for meeting" }),
+        JSON.stringify({
+          error: `Zoom registration failed [${registerResponse.status}]: ${errorText}`,
+        }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
