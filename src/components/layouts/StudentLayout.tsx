@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 import * as React from 'react';
 
@@ -94,7 +95,10 @@ const StudentLayout = React.forwardRef<HTMLDivElement, StudentLayoutProps>(({ ch
             </nav>
 
             {/* Right Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+
               {/* Notifications */}
               <Link to="/notifications">
                 <Button variant="ghost" size="icon" className="relative">
