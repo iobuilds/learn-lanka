@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPhoneDisplay } from '@/lib/utils';
 import { 
   Bell, 
   Plus, 
@@ -233,7 +234,7 @@ const AdminNotifications = () => {
                       <SelectContent>
                         {users.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
-                            {user.first_name} {user.last_name} ({user.phone})
+                            {user.first_name} {user.last_name} ({formatPhoneDisplay(user.phone)})
                           </SelectItem>
                         ))}
                       </SelectContent>

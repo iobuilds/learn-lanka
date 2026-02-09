@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatPhoneDisplay } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -224,7 +225,7 @@ const AdminContactMessages = () => {
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">{message.name}</TableCell>
-                        <TableCell>{message.phone}</TableCell>
+                        <TableCell>{formatPhoneDisplay(message.phone)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{message.subject}</TableCell>
                         <TableCell>
                           <Badge className={statusColors[message.status] || statusColors.PENDING}>
@@ -264,7 +265,7 @@ const AdminContactMessages = () => {
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">Phone:</span>
-                    <span className="font-medium">{selectedMessage.phone}</span>
+                    <span className="font-medium">{formatPhoneDisplay(selectedMessage.phone)}</span>
                   </div>
                   {selectedMessage.email && (
                     <div className="flex items-center gap-2">

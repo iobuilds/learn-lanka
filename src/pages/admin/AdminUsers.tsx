@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPhoneDisplay } from '@/lib/utils';
 import { 
   Search, 
   MoreVertical, 
@@ -281,7 +282,7 @@ const AdminUsers = () => {
                           <span className="font-medium">{user.first_name} {user.last_name}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{user.phone}</TableCell>
+                      <TableCell className="font-mono text-sm">{formatPhoneDisplay(user.phone)}</TableCell>
                       <TableCell>{user.school_name || '-'}</TableCell>
                       <TableCell>{user.grade ? `Grade ${user.grade}` : '-'}</TableCell>
                       <TableCell>{user.enrolled_classes}</TableCell>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatPhoneDisplay } from '@/lib/utils';
 import { CheckCircle, XCircle, Loader2, Download, ExternalLink, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -196,7 +197,7 @@ const PaymentVerificationDialog = ({
               <p className="font-medium">
                 {payment.profiles?.first_name} {payment.profiles?.last_name}
               </p>
-              <p className="text-sm text-muted-foreground">{payment.profiles?.phone}</p>
+              <p className="text-sm text-muted-foreground">{formatPhoneDisplay(payment.profiles?.phone)}</p>
             </div>
             <div className="p-3 rounded-lg bg-muted">
               <p className="text-sm text-muted-foreground">Amount</p>

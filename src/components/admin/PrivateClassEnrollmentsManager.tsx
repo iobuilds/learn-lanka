@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPhoneDisplay } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Check, Loader2, User, Clock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -244,7 +245,7 @@ const PrivateClassEnrollmentsManager = ({ classId, className }: Props) => {
                           {enrollment.profile?.first_name} {enrollment.profile?.last_name}
                         </p>
                         <p className="text-sm text-muted-foreground truncate">
-                          {enrollment.profile?.phone}
+                          {formatPhoneDisplay(enrollment.profile?.phone)}
                         </p>
                       </div>
                     </CollapsibleTrigger>

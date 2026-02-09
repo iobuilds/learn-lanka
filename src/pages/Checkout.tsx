@@ -25,6 +25,7 @@ import PaymentUploadForm from '@/components/payments/PaymentUploadForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { formatPhoneDisplay } from '@/lib/utils';
 
 type ProductType = 'SOFT' | 'PRINTED' | 'BOTH';
 
@@ -104,7 +105,7 @@ const Checkout = () => {
         .eq('id', user.id)
         .single();
       if (data) {
-        setPhone(data.phone || '');
+        setPhone(formatPhoneDisplay(data.phone) || '');
         setDeliveryAddress(data.address || '');
       }
     };
@@ -128,16 +129,20 @@ const Checkout = () => {
   const calculateDiscount = () => {
     if (!appliedCoupon) return 0;
     
+    let discountAmount = 0;
     switch (appliedCoupon.discount_type) {
       case 'PERCENT':
-        return Math.round(cartSubtotal * (appliedCoupon.discount_value / 100));
+        discountAmount = Math.round(cartSubtotal * (appliedCoupon.discount_value / 100));
+        break;
       case 'FIXED':
-        return Math.min(appliedCoupon.discount_value, cartSubtotal);
+        discountAmount = appliedCoupon.discount_value;
+        break;
       case 'FULL':
-        return cartSubtotal;
-      default:
-        return 0;
+        discountAmount = cartSubtotal;
+        break;
     }
+    // Always cap discount at cart subtotal - no refunds for excess
+    return Math.min(discountAmount, cartSubtotal);
   };
 
   const discount = calculateDiscount();
