@@ -39,18 +39,34 @@ const StudentLayout = React.forwardRef<HTMLDivElement, StudentLayoutProps>(({ ch
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut, isAdmin, isModerator } = useAuth();
 
-  // Fetch notification count
+  // Fetch unread notification count
   const { data: notificationCount = 0 } = useQuery({
-    queryKey: ['notification-count', user?.id],
+    queryKey: ['unread-notification-count', user?.id],
     queryFn: async () => {
-      const { count, error } = await supabase
+      if (!user) return 0;
+      // Get notifications the user has NOT read
+      const { data: readNotifs } = await supabase
+        .from('user_notification_reads')
+        .select('notification_id')
+        .eq('user_id', user.id);
+      
+      const readIds = readNotifs?.map(r => r.notification_id) || [];
+      
+      // Count total notifications minus the ones user already read
+      const { count: totalCount } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true });
-      if (error) throw error;
-      return count || 0;
+      
+      const { count: readCount } = await supabase
+        .from('user_notification_reads')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      
+      return Math.max(0, (totalCount || 0) - (readCount || 0));
     },
     enabled: !!user,
   });
+
 
   const handleLogout = async () => {
     await signOut();

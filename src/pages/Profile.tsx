@@ -130,11 +130,12 @@ const Profile = () => {
   // Extract just phone number from synthetic email
   const getPhoneDisplay = () => {
     if (profile?.phone) {
-      // Remove @phone.ict.alstudent.lk suffix if present
-      return profile.phone.replace(/@phone\.ict\.alstudent\.lk$/i, '');
+      // Remove any @phone.*.lk suffix
+      return profile.phone.replace(/@phone\.[^@]+$/i, '');
     }
     return '';
   };
+
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
