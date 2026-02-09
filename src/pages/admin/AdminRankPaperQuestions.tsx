@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import BulkAddQuestionsDialog from '@/components/admin/BulkAddQuestionsDialog';
 import SortableQuestionCard from '@/components/admin/SortableQuestionCard';
+import RankPaperAttachmentsManager from '@/components/admin/RankPaperAttachmentsManager';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -818,6 +819,14 @@ const AdminRankPaperQuestions = () => {
             </TabsContent>
           )}
         </Tabs>
+
+        {/* Review Materials Section */}
+        {paper && (
+          <RankPaperAttachmentsManager 
+            rankPaperId={paper.id} 
+            paperTitle={paper.title} 
+          />
+        )}
       </div>
 
       {/* Bulk Add Dialog */}

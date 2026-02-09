@@ -919,6 +919,44 @@ export type Database = {
           },
         ]
       }
+      rank_paper_attachments: {
+        Row: {
+          attachment_type: string
+          created_at: string
+          id: string
+          rank_paper_id: string
+          sort_order: number
+          title: string | null
+          url: string
+        }
+        Insert: {
+          attachment_type: string
+          created_at?: string
+          id?: string
+          rank_paper_id: string
+          sort_order?: number
+          title?: string | null
+          url: string
+        }
+        Update: {
+          attachment_type?: string
+          created_at?: string
+          id?: string
+          rank_paper_id?: string
+          sort_order?: number
+          title?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rank_paper_attachments_rank_paper_id_fkey"
+            columns: ["rank_paper_id"]
+            isOneToOne: false
+            referencedRelation: "rank_papers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rank_papers: {
         Row: {
           class_id: string | null

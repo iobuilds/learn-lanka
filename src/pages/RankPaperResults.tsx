@@ -12,7 +12,8 @@ import {
   EyeOff,
   Users,
   Trophy,
-  Play
+  Play,
+  Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +25,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
+
+interface Attachment {
+  id: string;
+  attachment_type: 'VIDEO' | 'ANSWER_PDF';
+  title: string | null;
+  url: string;
+  sort_order: number;
+}
 
 const RankPaperResults = () => {
   const { id } = useParams<{ id: string }>();
@@ -100,6 +109,21 @@ const RankPaperResults = () => {
       return data || [];
     },
     enabled: !!attempt,
+  });
+
+  // Fetch attachments (videos and answer PDFs) - only visible after marks published
+  const { data: attachments = [] } = useQuery({
+    queryKey: ['rank-paper-attachments', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rank_paper_attachments')
+        .select('*')
+        .eq('rank_paper_id', id)
+        .order('sort_order');
+      if (error) throw error;
+      return data as Attachment[];
+    },
+    enabled: !!id && !!marks?.published_at,
   });
 
   if (loadingPaper || loadingAttempt) {
@@ -274,21 +298,72 @@ const RankPaperResults = () => {
               </div>
             )}
 
-            {/* Review Video - Embedded Player */}
-            {marks?.published_at && paper.review_video_url && (
-              <div className="space-y-3">
+            {/* Review Videos - Multiple Embedded Players */}
+            {marks?.published_at && (attachments.filter(a => a.attachment_type === 'VIDEO').length > 0 || paper.review_video_url) && (
+              <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Play className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold">Review Video</h3>
+                  <h3 className="font-semibold">Review Videos</h3>
                 </div>
-                <YouTubeEmbed 
-                  url={paper.review_video_url} 
-                  title={`${paper.title} - Review`}
-                  className="shadow-lg"
-                />
+                
+                {/* Legacy single video support */}
+                {paper.review_video_url && attachments.filter(a => a.attachment_type === 'VIDEO').length === 0 && (
+                  <div className="space-y-2">
+                    <YouTubeEmbed 
+                      url={paper.review_video_url} 
+                      title={`${paper.title} - Review`}
+                      className="shadow-lg"
+                    />
+                  </div>
+                )}
+
+                {/* Multiple videos from attachments */}
+                {attachments.filter(a => a.attachment_type === 'VIDEO').map((video, idx) => (
+                  <div key={video.id} className="space-y-2">
+                    {video.title && (
+                      <p className="text-sm font-medium text-muted-foreground">{video.title}</p>
+                    )}
+                    <YouTubeEmbed 
+                      url={video.url} 
+                      title={video.title || `Review Video ${idx + 1}`}
+                      className="shadow-lg"
+                    />
+                  </div>
+                ))}
+                
                 <p className="text-sm text-muted-foreground text-center">
                   Watch the review to understand the solutions
                 </p>
+              </div>
+            )}
+
+            {/* Answer PDFs */}
+            {marks?.published_at && attachments.filter(a => a.attachment_type === 'ANSWER_PDF').length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold">Answer Sheets</h3>
+                </div>
+                <div className="space-y-2">
+                  {attachments.filter(a => a.attachment_type === 'ANSWER_PDF').map((pdf) => (
+                    <a
+                      key={pdf.id}
+                      href={pdf.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{pdf.title || 'Answer Sheet'}</p>
+                        <p className="text-sm text-muted-foreground">Download PDF</p>
+                      </div>
+                      <Download className="w-5 h-5 text-muted-foreground" />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
 
