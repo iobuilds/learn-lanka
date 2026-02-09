@@ -51,6 +51,8 @@ interface RankPaper {
   has_mcq: boolean;
   has_short_essay: boolean;
   has_essay: boolean;
+  class_id: string | null;
+  fee_amount: number | null;
 }
 
 interface Attempt {
@@ -116,7 +118,7 @@ const AdminRankPaperAttempts = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('rank_papers')
-        .select('id, title, grade, has_mcq, has_short_essay, has_essay')
+        .select('id, title, grade, has_mcq, has_short_essay, has_essay, class_id, fee_amount')
         .eq('id', paperId!)
         .single();
       if (error) throw error;
@@ -291,7 +293,7 @@ const AdminRankPaperAttempts = () => {
     },
   });
 
-  // Publish ALL marks mutation
+  // Publish ALL marks mutation with SMS notification
   const publishAllMarksMutation = useMutation({
     mutationFn: async () => {
       // Get all attempts that have marks but aren't published
@@ -311,10 +313,26 @@ const AdminRankPaperAttempts = () => {
         .in('attempt_id', attemptIds);
       
       if (error) throw error;
+
+      // Send SMS notification to eligible students
+      if (paper) {
+        await supabase.functions.invoke('send-sms-notification', {
+          body: {
+            type: 'rank_results_published',
+            rankPaperId: paper.id,
+            classId: paper.class_id,
+            data: {
+              paperTitle: paper.title,
+              grade: paper.grade,
+            },
+          },
+        });
+      }
+
       return attemptIds.length;
     },
     onSuccess: (count) => {
-      toast.success(`Published ${count} results! All students can now view their marks.`);
+      toast.success(`Published ${count} results! SMS sent to eligible students.`);
       queryClient.invalidateQueries({ queryKey: ['rank-marks', paperId] });
     },
     onError: (error: any) => {
