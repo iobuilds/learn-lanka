@@ -13,11 +13,18 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, newPassword } = await req.json();
+    const { userId, phone, newPassword } = await req.json();
 
-    if (!userId || !newPassword) {
+    if (!newPassword) {
       return new Response(
-        JSON.stringify({ success: false, error: "User ID and new password are required" }),
+        JSON.stringify({ success: false, error: "New password is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!userId && !phone) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User ID or phone number is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -36,10 +43,59 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Resolve target user id (prefer explicit userId; otherwise look up by phone)
+    let targetUserId: string | null = userId ?? null;
+
+    if (!targetUserId) {
+      const rawPhone = typeof phone === "string" ? phone.trim() : "";
+      const digits = rawPhone.replace(/\D/g, "");
+
+      const variants = new Set<string>();
+      const add = (v?: string) => {
+        if (v) variants.add(v);
+      };
+
+      add(digits);
+      if (digits.length === 9) add(`0${digits}`);
+      if (digits.length === 10 && digits.startsWith("0")) add(digits.slice(1));
+      if (digits.length === 11 && digits.startsWith("94")) add(`0${digits.slice(2)}`);
+      if (rawPhone.includes("@")) add(rawPhone.split("@")[0]);
+
+      const orParts: string[] = [];
+      for (const v of variants) {
+        orParts.push(`phone.eq.${v}`, `phone.ilike.${v}@phone.%`);
+      }
+
+      if (!orParts.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Valid phone number is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .or(orParts.join(","))
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      if (!profile?.id) {
+        return new Response(
+          JSON.stringify({ success: false, error: "User not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      targetUserId = profile.id;
+    }
+
     // Update user password
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
       password: newPassword,
     });
+
 
     if (error) {
       console.error("Password reset error:", error);

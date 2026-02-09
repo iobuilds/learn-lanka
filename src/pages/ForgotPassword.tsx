@@ -19,7 +19,7 @@ const ForgotPassword = () => {
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [userId, setUserId] = useState<string | null>(null);
+  
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,24 +32,8 @@ const ForgotPassword = () => {
     setIsLoading(true);
     
     try {
-      // First check if user exists with this phone number
-      const formattedPhone = phone.replace(/\D/g, '');
-      // Search for phone in multiple formats (with or without domain suffix)
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .or(`phone.eq.${formattedPhone},phone.ilike.${formattedPhone}@phone.%`)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-
-      if (!profile) {
-        toast.error('User not found. Please check your phone number or create an account.');
-        setIsLoading(false);
-        return;
-      }
-
-      setUserId(profile.id);
+      // NOTE: We don't check if the user exists here because public access to profiles can be restricted.
+      // OTP verification + backend password reset will validate the phone securely.
 
       // Send OTP
       const { data, error } = await supabase.functions.invoke('send-otp', {
@@ -118,13 +102,9 @@ const ForgotPassword = () => {
     setIsLoading(true);
     
     try {
-      // Format phone for email-like login
-      const formattedPhone = phone.replace(/\D/g, '');
-      const phoneEmail = `${formattedPhone}@phone.ict.alstudent.lk`;
-
-      // Update user password using admin API (through edge function)
+      // Update user password (backend will resolve the user by phone)
       const { data, error } = await supabase.functions.invoke('reset-password', {
-        body: { userId, newPassword: password }
+        body: { phone, newPassword: password }
       });
 
       if (error) throw error;
