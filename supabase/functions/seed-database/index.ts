@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 Deno.serve(async (req) => {
@@ -11,9 +11,44 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify admin access
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify user is admin
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if user is admin
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .single();
+
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { action } = await req.json();
 
@@ -143,43 +178,94 @@ Deno.serve(async (req) => {
 
     } else if (action === 'clear') {
       // Clear all data except auth/users related tables
-      // Order matters due to foreign key constraints
+      // Order matters due to foreign key constraints - delete children first
       const tablesToClear = [
+        // Zoom related
+        'student_meeting_links',
+        
+        // Rank paper children (deepest first)
         'rank_answers_mcq',
         'rank_answers_uploads',
         'rank_marks',
         'rank_attempts',
         'rank_mcq_options',
         'rank_mcq_questions',
+        'rank_paper_attachments',
         'rank_papers',
+        
+        // Lesson children
         'lesson_attachments',
         'lessons',
+        
+        // Class hierarchy (bottom up)
         'class_days',
         'class_months',
         'class_papers',
+        
+        // Enrollments
         'enrollment_payments',
         'class_enrollments',
+        'moderator_class_assignments',
+        
+        // Now classes can be deleted
         'classes',
+        
+        // Shop
         'shop_order_items',
         'shop_orders',
         'shop_products',
+        
+        // Payments
         'payments',
+        
+        // Coupons
         'coupon_usages',
         'coupons',
+        
+        // Bank accounts
         'bank_accounts',
+        
+        // Notifications
         'user_notification_reads',
         'notifications',
-        'sms_logs',
+        
+        // Papers
+        'paper_attachment_user_access',
+        'paper_attachments',
         'papers',
-        'moderator_class_assignments',
-        // NOT clearing: profiles, user_roles, sms_templates, otp_requests
+        
+        // Contact & SMS & OTP
+        'contact_messages',
+        'sms_logs',
+        'otp_requests',
+        
+        // NOT clearing: profiles, user_roles, sms_templates
       ];
 
+      const errors: string[] = [];
+      
       for (const table of tablesToClear) {
-        const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        if (error) {
-          console.error(`Error clearing ${table}:`, error);
+        try {
+          const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if (error) {
+            console.error(`Error clearing ${table}:`, error);
+            errors.push(`${table}: ${error.message}`);
+          }
+        } catch (e) {
+          console.error(`Exception clearing ${table}:`, e);
+          errors.push(`${table}: ${String(e)}`);
         }
+      }
+
+      if (errors.length > 0) {
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Database cleared with ${errors.length} warning(s). Users preserved.`,
+            warnings: errors 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       return new Response(
