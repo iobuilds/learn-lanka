@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import ClassPapersList from '@/components/class/ClassPapersList';
+import LessonAttachmentsList from '@/components/class/LessonAttachmentsList';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -538,7 +539,7 @@ const ClassDetail = () => {
                             <h3 className="font-medium text-foreground">{lesson.title}</h3>
                             <p className="text-sm text-muted-foreground mt-1">{lesson.description}</p>
                             
-                            {/* Materials */}
+                            {/* Legacy Materials (single pdf/youtube) */}
                             <div className="flex items-center gap-2 mt-3 flex-wrap">
                               {lesson.pdf_url && (
                                 <Button 
@@ -575,6 +576,9 @@ const ClassDetail = () => {
                                 </Button>
                               )}
                             </div>
+                            
+                            {/* New Multi-Attachments */}
+                            <LessonAttachmentsList lessonId={lesson.id} isPaid={isPaid} />
                           </div>
                         </div>
                       </div>
