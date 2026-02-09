@@ -254,11 +254,11 @@ const Register = () => {
 
         {/* Right Side - Register Form */}
         <div className="w-full max-w-md">
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-slate-900 text-center mb-2">
+          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur rounded-2xl p-8 shadow-2xl dark:text-slate-100">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
               Create Account
             </h2>
-            <p className="text-slate-500 text-center text-sm mb-4">
+            <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-4">
               {step === 'phone' && 'Enter your phone number to get started'}
               {step === 'otp' && 'Enter the OTP sent to your phone'}
               {step === 'details' && 'Complete your profile'}
@@ -270,7 +270,7 @@ const Register = () => {
             {step === 'phone' && (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-slate-700">Phone Number</Label>
+                  <Label htmlFor="phone" className="text-slate-700 dark:text-slate-300">Phone Number</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input
@@ -282,7 +282,7 @@ const Register = () => {
                         setPhone(e.target.value);
                         setAlreadyRegisteredError(false);
                       }}
-                      className={`pl-10 h-12 bg-slate-50 ${alreadyRegisteredError ? 'border-red-500' : 'border-slate-200'}`}
+                      className={`pl-10 h-12 bg-slate-50 dark:bg-slate-700 dark:border-slate-600 text-slate-900 dark:text-slate-100 ${alreadyRegisteredError ? 'border-red-500' : 'border-slate-200'}`}
                       required
                     />
                   </div>
@@ -331,14 +331,14 @@ const Register = () => {
             {step === 'otp' && (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="otp" className="text-slate-700">Verification Code</Label>
+                  <Label htmlFor="otp" className="text-slate-700 dark:text-slate-300">Verification Code</Label>
                   <Input
                     id="otp"
                     type="text"
                     placeholder="Enter 6-digit OTP"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="bg-slate-50 border-slate-200 text-center text-xl tracking-[0.5em] font-mono h-12"
+                    className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 text-center text-xl tracking-[0.5em] font-mono h-12"
                     maxLength={6}
                     required
                   />
@@ -382,60 +382,60 @@ const Register = () => {
               <form onSubmit={handleRegister} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor="firstName" className="text-slate-700 text-sm">First Name</Label>
+                    <Label htmlFor="firstName" className="text-slate-700 dark:text-slate-300 text-sm">First Name</Label>
                     <Input
                       id="firstName"
                       type="text"
                       placeholder="First name"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="bg-slate-50 border-slate-200"
+                      className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                       required
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="lastName" className="text-slate-700 text-sm">Last Name</Label>
+                    <Label htmlFor="lastName" className="text-slate-700 dark:text-slate-300 text-sm">Last Name</Label>
                     <Input
                       id="lastName"
                       type="text"
                       placeholder="Last name"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="bg-slate-50 border-slate-200"
+                      className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="schoolName" className="text-slate-700 text-sm">School Name</Label>
+                  <Label htmlFor="schoolName" className="text-slate-700 dark:text-slate-300 text-sm">School Name</Label>
                   <Input
                     id="schoolName"
                     type="text"
                     placeholder="Your school name"
                     value={schoolName}
                     onChange={(e) => setSchoolName(e.target.value)}
-                    className="bg-slate-50 border-slate-200"
+                    className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor="birthday" className="text-slate-700 text-sm">Birthday</Label>
+                    <Label htmlFor="birthday" className="text-slate-700 dark:text-slate-300 text-sm">Birthday</Label>
                     <Input
                       id="birthday"
                       type="date"
                       value={birthday}
                       onChange={(e) => setBirthday(e.target.value)}
-                      className="bg-slate-50 border-slate-200"
+                      className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                       required
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="grade" className="text-slate-700 text-sm">Grade</Label>
+                    <Label htmlFor="grade" className="text-slate-700 dark:text-slate-300 text-sm">Grade</Label>
                     <Select value={grade} onValueChange={setGrade} required>
-                      <SelectTrigger className="bg-slate-50 border-slate-200">
+                      <SelectTrigger className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100">
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
@@ -450,20 +450,20 @@ const Register = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="address" className="text-slate-700 text-sm">Address</Label>
+                  <Label htmlFor="address" className="text-slate-700 dark:text-slate-300 text-sm">Address</Label>
                   <Input
                     id="address"
                     type="text"
                     placeholder="Your address"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="bg-slate-50 border-slate-200"
+                    className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                     required
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="password" className="text-slate-700 text-sm">Password</Label>
+                  <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 text-sm">Password</Label>
                   <div className="relative">
                     <Input
                       id="password"
@@ -471,7 +471,7 @@ const Register = () => {
                       placeholder="Create password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bg-slate-50 border-slate-200 pr-10"
+                      className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 pr-10"
                       required
                     />
                     <button
@@ -485,14 +485,14 @@ const Register = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="confirmPassword" className="text-slate-700 text-sm">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword" className="text-slate-700 dark:text-slate-300 text-sm">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     placeholder="Confirm password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="bg-slate-50 border-slate-200"
+                    className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                     required
                   />
                 </div>
@@ -516,7 +516,7 @@ const Register = () => {
 
             {/* Login Link */}
             <div className="mt-6 pt-6 border-t border-slate-200 text-center">
-              <p className="text-slate-600 text-sm">
+              <p className="text-slate-600 dark:text-slate-400 text-sm">
                 Already have an account?{' '}
                 <Link 
                   to="/login" 

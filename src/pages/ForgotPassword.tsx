@@ -160,11 +160,11 @@ const ForgotPassword = () => {
 
         {/* Right Side - Form */}
         <div className="w-full max-w-sm">
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold text-slate-900 text-center mb-2">
+          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur rounded-2xl p-8 shadow-2xl dark:text-slate-100">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
               Reset Password
             </h2>
-            <p className="text-slate-500 text-center text-sm mb-6">
+            <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-6">
               {step === 'phone' && 'Enter your phone number to receive OTP'}
               {step === 'otp' && 'Enter the OTP sent to your phone'}
               {step === 'password' && 'Create a new password'}
@@ -174,7 +174,7 @@ const ForgotPassword = () => {
             {step === 'phone' && (
               <form onSubmit={handleSendOtp} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-slate-700">Phone Number</Label>
+                  <Label htmlFor="phone" className="text-slate-700 dark:text-slate-300">Phone Number</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input
@@ -183,7 +183,7 @@ const ForgotPassword = () => {
                       placeholder="07XXXXXXXX"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="pl-10 h-12 bg-slate-50 border-slate-200"
+                      className="pl-10 h-12 bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                       required
                     />
                   </div>
@@ -210,14 +210,14 @@ const ForgotPassword = () => {
             {step === 'otp' && (
               <form onSubmit={handleVerifyOtp} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="otp" className="text-slate-700">Verification Code</Label>
+                  <Label htmlFor="otp" className="text-slate-700 dark:text-slate-300">Verification Code</Label>
                   <Input
                     id="otp"
                     type="text"
                     placeholder="Enter 6-digit OTP"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="bg-slate-50 border-slate-200 text-center text-xl tracking-[0.5em] font-mono h-12"
+                    className="bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 text-center text-xl tracking-[0.5em] font-mono h-12"
                     maxLength={6}
                     required
                   />
@@ -260,7 +260,7 @@ const ForgotPassword = () => {
             {step === 'password' && (
               <form onSubmit={handleResetPassword} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-slate-700">New Password</Label>
+                  <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">New Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input
@@ -269,7 +269,7 @@ const ForgotPassword = () => {
                       placeholder="Create new password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10 h-12 bg-slate-50 border-slate-200"
+                      className="pl-10 pr-10 h-12 bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                       required
                     />
                     <button
@@ -283,14 +283,14 @@ const ForgotPassword = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-slate-700">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword" className="text-slate-700 dark:text-slate-300">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     placeholder="Confirm new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-12 bg-slate-50 border-slate-200"
+                    className="h-12 bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                     required
                   />
                 </div>
