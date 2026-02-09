@@ -34,10 +34,11 @@ const ForgotPassword = () => {
     try {
       // First check if user exists with this phone number
       const formattedPhone = phone.replace(/\D/g, '');
+      // Search for phone in multiple formats (with or without domain suffix)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('phone', formattedPhone)
+        .or(`phone.eq.${formattedPhone},phone.ilike.${formattedPhone}@phone.%`)
         .maybeSingle();
 
       if (profileError) throw profileError;
