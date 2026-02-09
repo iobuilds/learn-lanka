@@ -119,7 +119,7 @@ const ForgotPassword = () => {
     try {
       // Format phone for email-like login
       const formattedPhone = phone.replace(/\D/g, '');
-      const phoneEmail = `${formattedPhone}@phone.alict.lk`;
+      const phoneEmail = `${formattedPhone}@phone.ict.alstudent.lk`;
 
       // Update user password using admin API (through edge function)
       const { data, error } = await supabase.functions.invoke('reset-password', {

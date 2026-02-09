@@ -74,8 +74,8 @@ Deno.serve(async (req) => {
 
     // For REGISTER purpose, check if user already exists
     if (purpose === 'REGISTER') {
-      const phoneEmail = `${formattedPhone.replace(/^94/, '')}@phone.alict.lk`;
-      const phoneEmailAlt = `${formattedPhone}@phone.alict.lk`;
+      const phoneEmail = `${formattedPhone.replace(/^94/, '')}@phone.ict.alstudent.lk`;
+      const phoneEmailAlt = `${formattedPhone}@phone.ict.alstudent.lk`;
       
       // Check profiles table for existing phone
       const { data: existingProfile } = await supabase
