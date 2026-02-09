@@ -7,8 +7,10 @@ const corsHeaders = {
 
 interface SendOtpRequest {
   phone: string;
-  purpose: 'REGISTER' | 'LOGIN' | 'RESET_PASSWORD' | 'PRIVATE_ENROLL';
+  // NOTE: backend normalizes RESET_PASSWORD -> RECOVERY to match database constraint
+  purpose: 'REGISTER' | 'LOGIN' | 'RECOVERY' | 'RESET_PASSWORD' | 'PRIVATE_ENROLL';
 }
+
 
 // Generate 6-digit OTP
 function generateOtp(): string {
@@ -40,6 +42,8 @@ Deno.serve(async (req) => {
 
   try {
     const { phone, purpose }: SendOtpRequest = await req.json();
+    const normalizedPurpose = purpose === 'RESET_PASSWORD' ? 'RECOVERY' : purpose;
+
 
     if (!phone || !purpose) {
       return new Response(
@@ -138,12 +142,13 @@ Deno.serve(async (req) => {
       .upsert({
         phone: formattedPhone,
         otp_hash: otpHash,
-        purpose,
+        purpose: normalizedPurpose,
         expires_at: expiresAt.toISOString(),
         attempts: 0,
       }, {
         onConflict: 'phone,purpose'
       });
+
 
     if (dbError) {
       console.error('Database error:', dbError);

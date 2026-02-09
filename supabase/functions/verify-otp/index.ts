@@ -8,8 +8,10 @@ const corsHeaders = {
 interface VerifyOtpRequest {
   phone: string;
   otp: string;
-  purpose: 'REGISTER' | 'LOGIN' | 'RESET_PASSWORD' | 'PRIVATE_ENROLL';
+  // NOTE: backend normalizes RESET_PASSWORD -> RECOVERY to match database constraint
+  purpose: 'REGISTER' | 'LOGIN' | 'RECOVERY' | 'RESET_PASSWORD' | 'PRIVATE_ENROLL';
 }
+
 
 // Format phone to international format (94xxxxxxxxx)
 function formatPhone(phone: string): string {
@@ -34,6 +36,8 @@ Deno.serve(async (req) => {
 
   try {
     const { phone, otp, purpose }: VerifyOtpRequest = await req.json();
+    const normalizedPurpose = purpose === 'RESET_PASSWORD' ? 'RECOVERY' : purpose;
+
 
     if (!phone || !otp || !purpose) {
       return new Response(
@@ -61,8 +65,9 @@ Deno.serve(async (req) => {
       .from('otp_requests')
       .select('*')
       .eq('phone', formattedPhone)
-      .eq('purpose', purpose)
+      .eq('purpose', normalizedPurpose)
       .single();
+
 
     if (fetchError || !otpRequest) {
       return new Response(
