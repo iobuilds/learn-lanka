@@ -218,19 +218,56 @@
     -webkit-user-drag: none;
     user-drag: none;
   }
+
+  /* Active exam mode - body level protection */
+  .exam-mode-active {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    -webkit-touch-callout: none !important;
+  }
+
+  .exam-mode-active * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
+  .exam-mode-active img,
+  .exam-mode-active video,
+  .exam-mode-active canvas {
+    pointer-events: none !important;
+    -webkit-user-drag: none !important;
+    user-drag: none !important;
+  }
 }
 
 /* Print blocking for exam pages */
 @media print {
-  .exam-mode {
+  .exam-mode,
+  .exam-mode-active {
     display: none !important;
+    visibility: hidden !important;
   }
   
-  body::before {
-    content: "Printing is not allowed during exams";
-    display: block;
-    padding: 2rem;
-    font-size: 1.5rem;
-    text-align: center;
+  body.exam-mode-active {
+    visibility: hidden !important;
+  }
+  
+  body.exam-mode-active::before {
+    content: "🚫 Printing is not allowed during exams. This action has been recorded.";
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: white !important;
+    color: #d00 !important;
+    padding: 4rem !important;
+    font-size: 2rem !important;
+    text-align: center !important;
+    z-index: 999999 !important;
   }
 }
