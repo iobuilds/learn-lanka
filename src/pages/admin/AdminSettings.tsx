@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   GraduationCap, 
   Palette, 
@@ -7,7 +7,8 @@ import {
   Save,
   Globe,
   Image as ImageIcon,
-  Database
+  Database,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,16 +21,62 @@ import AdminLayout from '@/components/layouts/AdminLayout';
 import BankAccountManager from '@/components/admin/BankAccountManager';
 import DatabaseBackupRestore from '@/components/admin/DatabaseBackupRestore';
 import SmsTemplatesManager from '@/components/admin/SmsTemplatesManager';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const AdminSettings = () => {
-  const [siteName, setSiteName] = useState('ICT Academy');
-  const [contactPhone, setContactPhone] = useState('0771112233');
-  const [contactEmail, setContactEmail] = useState('info@ictacademy.lk');
+  const [siteName, setSiteName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Feature toggles
   const [rankPapersEnabled, setRankPapersEnabled] = useState(true);
   const [shopEnabled, setShopEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // Load settings from database
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('site_settings')
+          .select('key, value');
+        
+        if (error) throw error;
+        
+        const settings: Record<string, string> = {};
+        data?.forEach((s: any) => { settings[s.key] = s.value; });
+        
+        setSiteName(settings['site_name'] || 'ICT Academy');
+        setContactPhone(settings['contact_phone'] || '');
+        setContactEmail(settings['contact_email'] || '');
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const saveSettings = async (entries: { key: string; value: string }[]) => {
+    setIsSaving(true);
+    try {
+      for (const entry of entries) {
+        const { error } = await supabase
+          .from('site_settings')
+          .upsert({ key: entry.key, value: entry.value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        if (error) throw error;
+      }
+      toast.success('Settings saved successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -113,8 +160,8 @@ const AdminSettings = () => {
                   <p className="text-sm text-muted-foreground">Recommended: 1920x1080px JPG</p>
                 </div>
 
-                <Button className="mt-4">
-                  <Save className="w-4 h-4 mr-2" />
+                <Button className="mt-4" onClick={() => saveSettings([{ key: 'site_name', value: siteName }])} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Save Changes
                 </Button>
               </CardContent>
@@ -186,8 +233,11 @@ const AdminSettings = () => {
                     placeholder="info@example.com"
                   />
                 </div>
-                <Button className="mt-4">
-                  <Save className="w-4 h-4 mr-2" />
+                <Button className="mt-4" onClick={() => saveSettings([
+                  { key: 'contact_phone', value: contactPhone },
+                  { key: 'contact_email', value: contactEmail }
+                ])} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Save Changes
                 </Button>
               </CardContent>

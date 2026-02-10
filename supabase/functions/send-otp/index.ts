@@ -76,20 +76,16 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // For REGISTER purpose, check if user already exists
+    // For REGISTER purpose, check if user already exists in auth
     if (purpose === 'REGISTER') {
-      const phoneEmail = `${formattedPhone.replace(/^94/, '')}@phone.alict.lk`;
-      const phoneEmailAlt = `${formattedPhone}@phone.alict.lk`;
-
+      const localPhone = formattedPhone.replace(/^94/, '0');
+      const phoneEmail = `${localPhone}@phone.alict.lk`;
       
-      // Check profiles table for existing phone
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .or(`phone.eq.${formattedPhone},phone.eq.${formattedPhone.replace(/^94/, '0')}`)
-        .maybeSingle();
+      // Check auth.users via admin API to see if user actually exists and can sign in
+      const { data: authUser } = await supabase.auth.admin.getUserByEmail(phoneEmail);
 
-      if (existingProfile) {
+      if (authUser?.user) {
+        // User exists in auth - they should sign in instead
         return new Response(
           JSON.stringify({ 
             error: 'Phone number already registered',
@@ -98,6 +94,19 @@ Deno.serve(async (req) => {
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+      
+      // If no auth user found, clean up any orphaned profile so registration can proceed
+      const { data: orphanedProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .or(`phone.eq.${formattedPhone},phone.eq.${localPhone}`)
+        .maybeSingle();
+      
+      if (orphanedProfile) {
+        // Delete orphaned profile and role entries so trigger can recreate them
+        await supabase.from('user_roles').delete().eq('user_id', orphanedProfile.id);
+        await supabase.from('profiles').delete().eq('id', orphanedProfile.id);
       }
     }
     
